@@ -37,6 +37,7 @@ export function RequestMessage(type, id, name, payload) {
 	let _buf
 
 	if (id == null) throw new Error('Missing request identifier')
+	if (payload == null) throw new Error("Missing request payload")
 	if (name == null) name = ''
 
 	if (typeof payload === 'string') {
@@ -90,6 +91,7 @@ export function SignalMessage(name, payload) {
 	let _buf
 
 	if (name == null) name = ''
+	if (payload == null) throw new Error("Missing signal payload")
 
 	if (typeof payload === 'string') {
 		// Decide padding byte for unaligned name (offset of payload must be power 2)
