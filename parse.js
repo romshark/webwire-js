@@ -157,7 +157,6 @@ function parseErrorReply(message) {
 	)}
 
 	const str = utf8ArrayToStr(message.subarray(9))
-	console.log('ERR REP', str)
 
 	return {
 		id: message.subarray(1, 9),
