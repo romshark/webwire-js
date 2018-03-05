@@ -179,7 +179,7 @@ function parseReplyBinary(message) {
 	let payload = null
 	if (message.length > MinMsgLen.Reply) {
 		// Read payload as binary string
-		payload = message.subarray(10)
+		payload = message.subarray(9)
 	}
 
 	return {
@@ -200,7 +200,7 @@ function parseReplyUtf8(message) {
 	let payload = null
 	if (message.length > MinMsgLen.Reply) {
 		// Read payload as UTF8 encoded text
-		payload = utf8ArrayToStr(message.subarray(10))
+		payload = utf8ArrayToStr(message.subarray(9))
 	}
 
 	return {
