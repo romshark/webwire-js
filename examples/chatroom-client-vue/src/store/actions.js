@@ -9,7 +9,7 @@ export default {
 			{
 				// onSignal
 				onSignal: signal => {
-					commit('PUSH_MESSAGE', JSON.parse(signal))
+					commit('PUSH_MESSAGE', JSON.parse(signal.payload))
 				}
 			}
 		)
@@ -29,7 +29,9 @@ export default {
 			let err = await dispatch("CONNECT")
 			if (err != null) return err
 		}
-		let {err} = await Api.client.request(JSON.stringify(credentials))
+		// Send an authentication request with default UTF16 encoding to test whether
+		// the server will accept it. Set timeout to 1 second instead of the default 60
+		let {err} = await Api.client.request("auth", JSON.stringify(credentials), null, 1000)
 		if (err != null) return err
 
 		commit('SET_API_AUTH_STATUS', true)
@@ -54,7 +56,9 @@ export default {
 			let err = await dispatch("CONNECT")
 			if (err != null) return err
 		}
-		let err = await Api.client.signal(message)
+		// UTF8-encode the message in the payload
+		// the server doesn't support standard UTF16 JavaScript strings
+		let err = await Api.client.signal("", message, "utf8")
 		if (err != null) return err
 	}
 }

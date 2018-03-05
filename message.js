@@ -1,130 +1,101 @@
-export function Identifier() {
-	const _buf = new ArrayBuffer(8)
-	const _fragments = new Uint32Array(_buf, 0, 2)
+export const Type = {
+	// SERVER/CLIENT
 
-	Object.defineProperty(this, "bytes", {
-		get: function() {
-			// Endianess doesn't matter since what are only interested in the uniqueness
-			// of the identifier in the context of the creator to differentiate messages
-			return new Uint8Array(_buf)
-		}
-	})
+	// MsgErrorReply is sent by the server
+	// and represents an error-reply to a previously sent request
+	ErrorReply: 0,
 
-	Object.defineProperty(this, "increment", {
-		value: function() {
-			let front = _fragments[0]
-			let end = _fragments[1]
+	// SERVER
 
-			if (end + 1 > 4294967295) {
-				if (front + 1 > 4294967295) {
-					// Overflow!
-					end = 0
-					front = 0
-				}
-				end = 0
-				front++
-			} else {
-				end++
-			}
+	// SessionCreated is sent by the server
+	// to notify the client about the session creation
+	SessionCreated: 21,
 
-			_fragments.set([front, end], 0)
-		}
-	})
+	// SessionClosed is sent by the server
+	// to notify the client about the session destruction
+	SessionClosed: 22,
+
+	// CLIENT
+
+	// CloseSession is sent by the client
+	// and represents a request for the destruction of the currently active session
+	CloseSession: 31,
+
+	// RestoreSession is sent by the client
+	// to request session restoration
+	RestoreSession: 32,
+
+	// SIGNAL
+	// Signals are sent by both the client and the server
+	// and represents a one-way signal message that doesn't require a reply
+
+	// SignalBinary represents a signal with binary payload
+	SignalBinary: 63,
+
+	// SignalUtf8 represents a signal with UTF8 encoded payload
+	SignalUtf8: 64,
+
+	// SignalUtf16 represents a signal with UTF16 encoded payload
+	SignalUtf16: 65,
+
+	// REQUEST
+	// Requests are sent by the client
+	// and represents a roundtrip to the server requiring a reply
+
+	// RequestBinary represents a request with binary payload
+	RequestBinary: 127,
+
+	// RequestUtf8 represents a request with a UTF8 encoded payload
+	RequestUtf8: 128,
+
+	// RequestUtf16 represents a request with a UTF16 encoded payload
+	RequestUtf16: 129,
+
+	// REPLY
+	// Replies are sent by the server
+	// and represent a reply to a previously sent request
+
+	// ReplyBinary represents a reply with a binary payload
+	ReplyBinary: 191,
+
+	// ReplyUtf8 represents a reply with a UTF8 encoded payload
+	ReplyUtf8: 192,
+
+	// ReplyUtf16 represents a reply with a UTF16 encoded payload
+	ReplyUtf16: 193,
 }
 
-// name is optional and must be shorter 255 and must contain only ASCII characters (range 32-126)
-export function RequestMessage(type, id, name, payload) {
-	let _buf
+export const MinLen = {
+	// Signal represents the minimum binary/UTF8 encoded signal message length
+	Signal: 3,
 
-	if (id == null) throw new Error('Missing request identifier')
-	if (payload == null) throw new Error("Missing request payload")
-	if (name == null) name = ''
+	// SignalUtf16 represents the minimum UTF16 encoded signal message length
+	SignalUtf16: 4,
 
-	if (typeof payload === 'string') {
-		// Decide padding byte for unaligned name (offset of payload must be power 2)
-		let namePaddingByte = false
-		if (name != null && name.length % 2 !== 0) namePaddingByte = true
+	// Request represents the minimum binary/UTF8 encoded request message length
+	Request: 11,
 
-		// Construct from string
-		const headerSize = 10 + name.length + (namePaddingByte ? 1 : 0)
-		_buf = new ArrayBuffer(headerSize + payload.length * 2)
+	// RequestUtf16 represents the minimum UTF16 encoded request message length
+	RequestUtf16: 12,
 
-		// Write type flag, default to 129 (RequestUtf16)
-		const headerBuf = new Uint8Array(_buf, 0, headerSize)
-		headerBuf[0] = type != null ? type : 129
+	// Reply represents the minimum binary/UTF8 encoded reply message length
+	Reply: 9,
 
-		// Write request identifier
-		const idBytes = id.bytes
-		for (let i = 1; i < 9; i++) {
-			headerBuf[i] = idBytes[i - 1]
-		}
+	// ReplyUtf16 represents the minimum UTF16 encoded reply message length
+	ReplyUtf16: 10,
 
-		// Write name length flag
-		headerBuf[9] = name.length
+	// ErrorReply represents the minimum error reply message length
+	ErrorReply: 10,
 
-		// Write request name
-		for (let i = 0; i < name.length; i++) {
-			let charCode = name.charCodeAt(i)
-			if (charCode < 32 || charCode > 126) throw new Error(
-				`Unsupported name character (${charCode})`
-			)
-			headerBuf[10 + i] = name.charCodeAt(i)
-		}
+	// RestoreSession represents the minimum session restoration request message length
+	RestoreSession: 10,
 
-		// Write request payload
-		var payloadBuf = new Uint16Array(_buf, headerSize, payload.length)
-		for (let i = 0; i < payload.length; i++) {
-			payloadBuf[i] = payload.charCodeAt(i)
-		}
-	}
-	else throw new Error("Unsupported request payload type: " + (typeof payload))
+	// CloseSession represents the minimum session destruction request message length
+	CloseSession: 9,
 
-	Object.defineProperty(this, "bytes", {
-		get: function() {
-			return new Uint8Array(_buf)
-		}
-	})
-}
+	// SessionCreated represents the minimum session creation notification message length
+	SessionCreated: 2,
 
-// name is optional and must be shorter 255 and must contain only ASCII characters (range 32-126)
-export function SignalMessage(name, payload) {
-	let _buf
-
-	if (name == null) name = ''
-	if (payload == null) throw new Error("Missing signal payload")
-
-	if (typeof payload === 'string') {
-		// Decide padding byte for unaligned name (offset of payload must be power 2)
-		let namePaddingByte = false
-		if (name.length % 2 !== 0) namePaddingByte = true
-
-		// Construct from string
-		const headerSize = 2 + name.length + (namePaddingByte ? 1 : 0)
-		_buf = new ArrayBuffer(headerSize + payload.length * 2)
-
-		// Write type flag
-		const headerBuf = new Uint8Array(_buf, 0, headerSize)
-		headerBuf[0] = 113
-
-		// Write name length flag
-		headerBuf[1] = name.length
-
-		// Write request name
-		for (let i = 0; i < name.length; i++) {
-			headerBuf[2 + i] = name.charCodeAt(i)
-		}
-
-		// Write request payload
-		var payloadBuf = new Uint16Array(_buf, headerSize, payload.length)
-		for (let i = 0; i < payload.length; i++) {
-			payloadBuf[i] = payload.charCodeAt(i)
-		}
-	}
-	else throw new Error("Unsupported signal payload type: " + (typeof payload))
-
-	Object.defineProperty(this, "bytes", {
-		get: function() {
-			return new Uint8Array(_buf)
-		}
-	})
+	// SessionClosed represents the minimum session creation notification message length
+	SessionClosed: 1,
 }

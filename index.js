@@ -1,46 +1,14 @@
 import Socket from './socket'
-import UuidV4 from 'uuid/v4'
+import {
+	Type as MessageType
+} from './message'
+import RequestMessage from './requestMessage'
+import SignalMessage from './signalMessage'
+import SessionKey from './sessionKey'
+import Parse from './parse'
+import NamelessRequestMessage from './namelessReqMsg'
 
-// TODO: implement UUIDv4 generation
-function generateMessageIdentifier() {
-	return UuidV4().replace(/-/g, "")
-}
-
-const supportedProtocolVersion = '1.0'
-
-const MessageTypes = {
-	// RestoreSession is sent by the client
-	// to request session restoration
-	RestoreSession: 'r',
-
-	// SessionCreated is sent by the server
-	// to notify the client about the session creation
-	SessionCreated: 'c',
-
-	// SessionClosed is sent by the server
-	// to notify the client about the session destruction
-	SessionClosed: 'd',
-
-	// Signal is sent by both the client and the server
-	// and represents a one-way signal message that doesn't require a reply
-	Signal: 's',
-
-	// Request is sent by the client
-	// and represents a roundtrip to the server requiring a reply
-	Request: 'q',
-
-	// Reply is sent by the server
-	// and represents a reply to a previously sent request
-	Reply: 'p',
-
-	// ErrorReply is sent by the server
-	// and represents an error-reply to a previously sent request
-	ErrorReply: 'e',
-
-	// CloseSession is sent by the client
-	// and requests the destruction of the currently active session
-	CloseSession: 'x',
-}
+const supportedProtocolVersion = '1.1'
 
 function getCallbacks(cbs) {
 	let onSignal = function() {}
@@ -62,10 +30,6 @@ function getCallbacks(cbs) {
 		onSessionCreated,
 		onSessionClosed
 	}
-}
-
-function extractMessageIdentifier(message) {
-	return message.substring(1, 33)
 }
 
 export function Session(key, creationDate, info) {
@@ -90,7 +54,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 
 	// Define interface methods
 	Object.defineProperty(this, 'connect', {value: connect})
-	Object.defineProperty(this, 'request', {value: request})
+	Object.defineProperty(this, 'request', {value: sendRequest})
 	Object.defineProperty(this, 'signal', {value: signal})
 	Object.defineProperty(this, 'restoreSession', {value: restoreSession})
 	Object.defineProperty(this, 'closeSession', {value: closeSession})
@@ -118,21 +82,19 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 	})
 	Object.freeze(this)
 
-	function handleSessionCreated(message) {
-		const jsonData = JSON.parse(message)
+	function handleSessionCreated(session) {
+		const sessionKey = new SessionKey(session.key)
 		_session = {
-			key: jsonData.key,
-			creationDate: jsonData.crt,
-			info: jsonData.inf
+			key: sessionKey,
+			creationDate: session.crt,
+			info: session.inf
 		}
 
 		// Provide copy of the actual session to preserve its immutability
 		_onSessionCreated({
-			key: jsonData.key,
-			operatingSystem: jsonData.os,
-			userAgent: jsonData.ua,
-			creationDate: jsonData.crt,
-			info: jsonData.inf
+			key: sessionKey,
+			creationDate: session.crt,
+			info: session.inf
 		})
 	}
 
@@ -142,60 +104,75 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 	}
 
 	function handleFailure(message) {
-		const requestIdentifier = extractMessageIdentifier(message)
-		const req = _pendingRequests[requestIdentifier]
+		const req = _pendingRequests[message.id]
 
 		// Ignore unexpected failure replies
 		if (!req) return
 
-		// Parse failure reply
-		const payload = JSON.parse(message.substring(33))
-
 		// Fail the request
 		req.fail({
-			code: payload.c,
-			message: payload.m,
+			code: message.error.c,
+			message: message.error.m,
 		})
-		delete _pendingRequests[requestIdentifier]
 	}
 
 	function handleReply(message) {
-		const requestIdentifier = extractMessageIdentifier(message)
-		const req = _pendingRequests[requestIdentifier]
+		const req = _pendingRequests[message.id]
 
 		// Ignore unexpected replies
 		if (!req) return
 
 		// Fulfill the request
-		req.fulfill(message.substring(33))
-		delete _pendingRequests[requestIdentifier]
+		req.fulfill({
+			encoding: message.encoding,
+			payload: message.payload
+		})
 	}
 
-	function handleMessage(message) {
-		if (message.length < 1) return
+	async function handleMessage(msgObj) {
+		if (msgObj.size < 1) return
 
-		// Extract message type
-		const messageType = message.substring(0, 1)
+		const parsed = await Parse(msgObj)
+
+		if (parsed.err != null) {
+			console.warn("Failed parsing message:", parsed.err)
+			return
+		}
 
 		// Handle message
-		switch (messageType) {
-		case MessageTypes.Reply:
-			handleReply(message)
+		switch (parsed.type) {
+		case MessageType.ReplyBinary:
+		case MessageType.ReplyUtf8:
+		case MessageType.ReplyUtf16:
+			handleReply({
+				id: parsed.msg.id,
+				encoding: parsed.payloadEncoding,
+				payload: parsed.msg.payload
+			})
 			break
-		case MessageTypes.ErrorReply:
-			handleFailure(message)
+		case MessageType.ErrorReply:
+			handleFailure({
+				id: parsed.msg.id,
+				error: parsed.msg.reqError
+			})
 			break
-		case MessageTypes.Signal:
-			_onSignal(message.substring(1))
+		case MessageType.SignalBinary:
+		case MessageType.SignalUtf8:
+		case MessageType.SignalUtf16:
+			_onSignal({
+				name: parsed.msg.name,
+				encoding: parsed.payloadEncoding,
+				payload: parsed.msg.payload
+			})
 			break
-		case MessageTypes.SessionCreated:
-			handleSessionCreated(message.substring(1))
+		case MessageType.SessionCreated:
+			handleSessionCreated(parsed.msg.session)
 			break
-		case MessageTypes.SessionClosed:
+		case MessageType.SessionClosed:
 			handleSessionClosed()
 			break
 		default:
-			console.warn("Strange message type received: ", messageType)
+			console.warn("Strange message type received: ", parsed.type)
 			break
 		}
 	}
@@ -218,15 +195,21 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		}
 	}
 
-	function sendRequest(messageType, payload, timeoutDuration) {
+	// Sends a request containing the given payload to the server.
+	// Returns a promise that is resolved when the server replies.
+	// Automatically connects to the server if no connection has yet been established.
+	// Optionally takes a timeout, otherwise default timeout is applied
+	function sendRequest(name, payload, encoding, timeoutDuration) {
 		// Connect before attempting to send the request
 		return new Promise(async resolve => {
+			const reqMsg = new RequestMessage(name, payload, encoding)
+			const reqIdBytes = reqMsg.id.bytes
+
 			let err = await connect()
 			if (err != null) return resolve({err: err})
-			const requestIdentifier = generateMessageIdentifier()
 			let timeout = setTimeout(() => {
 				// Deregister request
-				delete _pendingRequests[requestIdentifier]
+				delete _pendingRequests[reqIdBytes]
 				timeout = null
 
 				let newErr = new Error('Request timed out')
@@ -238,7 +221,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 					// If the request already timed out then drop the reply
 					if (timeout == null) return
 
-					delete _pendingRequests[requestIdentifier]
+					delete _pendingRequests[reqIdBytes]
 					clearTimeout(timeout)
 
 					resolve({reply: reply})
@@ -247,7 +230,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 					// If the request already timed out then drop the reply
 					if (timeout == null) return
 
-					delete _pendingRequests[requestIdentifier]
+					delete _pendingRequests[reqIdBytes]
 					clearTimeout(timeout)
 
 					resolve({err: err})
@@ -255,11 +238,57 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 			}
 
 			// Register request
-			_pendingRequests[requestIdentifier] = req
+			_pendingRequests[reqIdBytes] = req
 
 			// Send request
-			if (payload == null) _conn.send(`${messageType}${requestIdentifier}`)
-			else _conn.send(`${messageType}${requestIdentifier}${payload}`)
+			_conn.send(reqMsg.bytes)
+		})
+	}
+
+	function sendNamelessRequest(messageType, payload, timeoutDuration) {
+		return new Promise(async resolve => {
+			const reqMsg = new NamelessRequestMessage(messageType, payload)
+			const reqIdBytes = reqMsg.id.bytes
+
+			
+			// Connect before attempting to send the request
+			let err = await connect()
+			if (err != null) return resolve({err: err})
+			let timeout = setTimeout(() => {
+				// Deregister request
+				delete _pendingRequests[reqIdBytes]
+				timeout = null
+
+				let newErr = new Error('Request timed out')
+				newErr.code = 'TIMEOUT'
+				resolve({err: newErr})
+			}, timeoutDuration ? timeoutDuration : _defaultTimeout)
+			const req = {
+				fulfill(reply) {
+					// If the request already timed out then drop the reply
+					if (timeout == null) return
+
+					delete _pendingRequests[reqIdBytes]
+					clearTimeout(timeout)
+
+					resolve({reply: reply})
+				},
+				fail(err) {
+					// If the request already timed out then drop the reply
+					if (timeout == null) return
+
+					delete _pendingRequests[reqIdBytes]
+					clearTimeout(timeout)
+
+					resolve({err: err})
+				}
+			}
+
+			// Register request
+			_pendingRequests[reqIdBytes] = req
+
+			// Send request
+			_conn.send(reqMsg.bytes)
 		})
 	}
 
@@ -283,9 +312,9 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 
 				// Try to automatically restore session if necessary
 				if (_session == null) return resolve()
-				const {reply, err: reqErr} = await sendRequest(
-					MessageTypes.RestoreSession,
-					_session.key
+				const {reply, err: reqErr} = await sendNamelessRequest(
+					MessageType.RestoreSession,
+					_session.key.bytes
 				)
 				if (reqErr != null) {
 					// Just log a warning and still return null,
@@ -317,36 +346,33 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		})
 	}
 
-	// Sends a request containing the given payload to the server.
-	// Returns a promise that is resolved when the server replies.
-	// Automatically connects to the server if no connection has yet been established.
-	// Optionally takes a timeout, otherwise default timeout is applied
-	async function request(payload, timeout) {
-		return await sendRequest(
-			MessageTypes.Request,
-			payload,
-			timeout ? timeout : _defaultTimeout
-		)
-	}
-
 	// Sends a signal containing the given payload to the server.
 	// Automatically connects to the server if no connection has yet been established
-	async function signal(payload) {
+	async function signal(name, payload, encoding) {
+		const sigMsg = new SignalMessage(name, payload, encoding)
+
 		// Connect before attempting to send the signal
 		const err = await connect()
 		if (err != null) return err
-		_conn.send(MessageTypes.Signal + payload)
+		_conn.send(sigMsg.bytes)
 	}
 
 	// Tries to restore the previously opened session.
 	// Fails if a session is currently already active
 	// Automatically connects to the server if no connection has yet been established
 	async function restoreSession(sessionKey) {
+		if (!(sessionKey instanceof SessionKey)) return new Error(
+			"Expected session key to be an instance of SessionKey"
+		)
+
 		if (_session) return new Error("Can't restore session if another one is already active")
 		// Connect before attempting to send the signal
 		let connErr = await connect()
 		if (connErr != null) return connErr
-		let {resp, err: reqErr} = await sendRequest(MessageTypes.RestoreSession, sessionKey)
+		let {resp, err: reqErr} = await sendNamelessRequest(
+			MessageType.RestoreSession,
+			sessionKey.bytes
+		)
 		if (reqErr != null) return reqErr
 		_session = JSON.parse(resp.substring(33))
 	}
@@ -358,7 +384,10 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 			_session = null
 			return
 		}
-		let {err: reqErr} = await sendRequest(MessageTypes.CloseSession, null)
+		let {err: reqErr} = await sendNamelessRequest(
+			MessageType.CloseSession,
+			null
+		)
 		if (reqErr != null) return reqErr
 		_session = null
 	}
