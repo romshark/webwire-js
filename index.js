@@ -7,6 +7,7 @@ import SignalMessage from './signalMessage'
 import SessionKey from './sessionKey'
 import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
+import { decode } from 'punycode';
 
 const supportedProtocolVersion = '1.1'
 
@@ -32,17 +33,33 @@ function getCallbacks(cbs) {
 	}
 }
 
-export function Session(key, creationDate, info) {
-	Object.defineProperty(this, 'key', {value: key})
-	Object.defineProperty(this, 'creationDate', {value: creationDate})
-	Object.defineProperty(this, 'info', {value: info})
-}
+const activeClients = {}
 
 export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
+	if (typeof _serverAddr !== "string" || _serverAddr.length < 1) throw new Error(
+		"Invalid WebWire server address"
+	)
+
+	// Load client state for this server address if any
+	const locStorKey = `webwire:${_serverAddr}`
+	let state = localStorage.getItem(locStorKey)
+
+	if (state != null) {
+		state = JSON.parse(state)
+		state.session = new SessionKey(state.session)
+	}
+	else state = {}
+
+	// Verify if another client is already connected to this server
+	if (activeClients[_serverAddr]) throw new Error(
+		`Another WebWire client is already connected to host ${_serverAddr}`
+	)
+	else activeClients[_serverAddr] = true
+
 	// Default request timeout is 60 seconds by default
 	const _defaultTimeout = defaultTimeout ? defaultTimeout : 60000
 	const _pendingRequests = {}
-	let _session = null
+	let _session = state.session ? {key: state.session} : null
 	let _conn = null
 	let _isConnected = false
 
@@ -70,8 +87,9 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		get() {
 			if (_session) return {
 				key: _session.key,
-				creationDate: new Date(_session.creationDate.getTime()),
-				info: JSON.parse(JSON.stringify(_session.info))
+				creationDate: _session.creationDate ?
+					new Date(_session.creationDate.getTime()) : null,
+				info: _session.info ? JSON.parse(JSON.stringify(_session.info)) : null
 			}
 		}
 	})
@@ -89,6 +107,10 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 			creationDate: session.crt,
 			info: session.inf
 		}
+
+		// Save session key to local storage for automatic restoration
+		const str = JSON.stringify({session: sessionKey.string})
+		localStorage.setItem(locStorKey, str)
 
 		// Provide copy of the actual session to preserve its immutability
 		_onSessionCreated({
@@ -246,14 +268,11 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 	}
 
 	function sendNamelessRequest(messageType, payload, timeoutDuration) {
-		return new Promise(async resolve => {
+		if (!_isConnected) return Promise.resolve({err: new Error("Not connected")})
+		return new Promise(resolve => {
 			const reqMsg = new NamelessRequestMessage(messageType, payload)
 			const reqIdBytes = reqMsg.id.bytes
 
-			
-			// Connect before attempting to send the request
-			let err = await connect()
-			if (err != null) return resolve({err: err})
 			let timeout = setTimeout(() => {
 				// Deregister request
 				delete _pendingRequests[reqIdBytes]
@@ -292,6 +311,30 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		})
 	}
 
+	async function tryRestoreSession(sessionKey) {
+		const {reply, err: reqErr} = await sendNamelessRequest(
+			MessageType.RestoreSession,
+			sessionKey
+		)
+		if (reqErr != null) {
+			// Just log a warning and still return null,
+			// even if session restoration failed,
+			// because we only care about the connection establishment in this method
+			console.warn("WebWire client: couldn't restore session:", err)
+
+			// Reset the session
+			_session = null
+			localStorage.removeItem(locStorKey)
+			return reqErr
+		}
+		const decodedSession = JSON.parse(reply.payload)
+		_session = {
+			key: new SessionKey(decodedSession.key),
+			creationDate: new Date(decodedSession.crt),
+			info: decodedSession.inf
+		}
+	}
+
 	/****************************************************************\
 		Interface
 	\****************************************************************/
@@ -310,25 +353,13 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 			_conn.onOpen(async () => {
 				_isConnected = true
 
-				// Try to automatically restore session if necessary
 				if (_session == null) return resolve()
-				const {reply, err: reqErr} = await sendNamelessRequest(
-					MessageType.RestoreSession,
-					_session.key.bytes
-				)
-				if (reqErr != null) {
-					// Just log a warning and still return null,
-					// even if session restoration failed,
-					// because we only care about the connection establishment in this method
-					console.warn(
-						"WebWire client: couldn't restore session on reconnection: %s", err
-					)
 
-					// Reset the session
-					_session = null
-					return resolve()
-				}
-				_session = JSON.parse(reply)
+				// Try to automatically restore previous session
+				const err = await tryRestoreSession(_session.key.bytes)
+				if (err != null) console.warn(
+					`WebWire client: couldn't restore session on reconnection: ${err}`
+				)
 				resolve()
 			})
 			_conn.onError(err => {
@@ -369,12 +400,10 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		// Connect before attempting to send the signal
 		let connErr = await connect()
 		if (connErr != null) return connErr
-		let {resp, err: reqErr} = await sendNamelessRequest(
-			MessageType.RestoreSession,
-			sessionKey.bytes
+		const err = await tryRestoreSession(sessionKey.bytes)
+		if (err != null) console.warn(
+			`WebWire client: couldn't restore session by key (${sessionKey.string}) : ${err}`
 		)
-		if (reqErr != null) return reqErr
-		_session = JSON.parse(resp.substring(33))
 	}
 
 	// Closes the currently active session.
@@ -390,6 +419,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		)
 		if (reqErr != null) return reqErr
 		_session = null
+		localStorage.removeItem(locStorKey)
 	}
 
 	// Gracefully closes the connection.
