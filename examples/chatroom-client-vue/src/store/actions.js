@@ -19,6 +19,7 @@ export default {
 			return err
 		}
 		commit('SET_API_CONNECTION_STATUS', true)
+		if (Api.client.session != null) commit('SET_API_AUTH_STATUS', true)
 	},
 
 	// SIGNIN tries to authenticate the API client using the provided credentials.
