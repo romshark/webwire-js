@@ -7,7 +7,6 @@ import SignalMessage from './signalMessage'
 import SessionKey from './sessionKey'
 import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
-import { decode } from 'punycode';
 
 const supportedProtocolVersion = '1.1'
 
@@ -320,7 +319,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 			// Just log a warning and still return null,
 			// even if session restoration failed,
 			// because we only care about the connection establishment in this method
-			console.warn("WebWire client: couldn't restore session:", err)
+			console.warn("WebWire client: couldn't restore session:", reqErr)
 
 			// Reset the session
 			_session = null
