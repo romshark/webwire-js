@@ -5,6 +5,7 @@ import {
 	New as NewIdentifier,
 	Identifier as RequestIdentifier
 } from './identifier'
+import strToUtf8Array from './strToUtf8Array'
 
 // RequestMessage represents an instantiatable webwire request message
 // name is optional and must be shorter 255 and must contain only ASCII characters (range 32-126)
@@ -19,7 +20,7 @@ export default function RequestMessage(name, payload, encoding) {
 
 	// Encode string into UTF8 payload
 	if (typeof payload === 'string' && encoding === "utf8") {
-		const encodedPayload = StrToUtf8Array(payload)
+		const encodedPayload = strToUtf8Array(payload)
 
 		// Decide padding byte for unaligned header (offset of payload must be power 2)
 		let headerPadding = false
