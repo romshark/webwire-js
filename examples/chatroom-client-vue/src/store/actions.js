@@ -10,6 +10,13 @@ export default {
 				// onSignal
 				onSignal: signal => {
 					commit('PUSH_MESSAGE', JSON.parse(signal.payload))
+				},
+				onSessionCreated: newSession => {
+					console.log(newSession.info.username)
+					commit('SET_API_USER', newSession.info.username)
+				},
+				onSessionClosed: () => {
+					commit('SET_API_USER', null)
 				}
 			}
 		)
@@ -19,7 +26,7 @@ export default {
 			return err
 		}
 		commit('SET_API_CONNECTION_STATUS', true)
-		if (Api.client.session != null) commit('SET_API_AUTH_STATUS', true)
+		if (Api.client.session != null) commit('SET_API_USER', Api.client.session.info.username)
 	},
 
 	// SIGNIN tries to authenticate the API client using the provided credentials.
@@ -34,18 +41,16 @@ export default {
 		// the server will accept it. Set timeout to 1 second instead of the default 60
 		let {err} = await Api.client.request("auth", JSON.stringify(credentials), null, 1000)
 		if (err != null) return err
-
-		commit('SET_API_AUTH_STATUS', true)
 	},
 
 	// SIGNOUT tries to close the currently active API session.
 	// Does nothing if there's no currently active session.
 	// Returns an error if anything goes wrong
 	async SIGNOUT({ commit, state }) {
-		if (!state.api.authenticated) return
+		if (state.api.user == null) return
 		let err = await Api.client.closeSession()
 		if (err != null) return err
-		commit('SET_API_AUTH_STATUS', false)
+		commit('SET_API_USER', null)
 	},
 
 	// PUSH_MESSAGE pushes a new message to the server in a signal.

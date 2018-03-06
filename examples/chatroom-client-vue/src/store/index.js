@@ -11,7 +11,7 @@ export function createStore () {
 		state: {
 			messages: [],
 			api: {
-				authenticated: false,
+				user: null,
 				addr: '127.0.0.1:9090',
 				connected: false,
 			},

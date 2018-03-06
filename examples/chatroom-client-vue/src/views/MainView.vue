@@ -12,14 +12,14 @@
 		<router-link
 		:to="{name: 'SignInView'}"
 		class="signin-button"
-		v-if="!$store.state.api.authenticated">
+		v-if="$store.state.api.user == null">
 			Sign In
 		</router-link>
 		<button
-		v-if="$store.state.api.authenticated"
+		v-if="$store.state.api.user != null"
 		class="signout-button"
 		@click="signout">
-			Sign Out
+			{{$store.state.api.user}} - Sign Out
 		</button>
 	</div>
 	<ul class="message-list">
