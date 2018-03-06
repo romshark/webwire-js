@@ -108,6 +108,20 @@ if (err != null) {
 client.session // Won't be null, if a previous session was restored
 ```
 
+### Encodings
+Besides plain binary streams WebWire supports UTF8 and UTF16 encodings and will automatically transcode payloads into the explicitly specified encoding. If no encoding is explicitly specified - UTF16 is used for JavaScript strings and plain binary for Uint8Array instances by default.
+
+```javascript
+// Cyrillic text in UTF16
+client.request("", "кириллица")
+
+// Cyrillic text in UTF8 automatically transcoded
+client.request("", "кириллица", "utf8")
+
+const binaryData = new Uint8Array(new ArrayBuffer(5))
+binaryData.set([76, 97, 116, 105, 110], 0) // "Latin"
+client.request("", binaryData) // 7-bit ASCII text in binary
+```
 ----
 
 © 2018 Roman Sharkov <roman.sharkov@qbeon.com>
