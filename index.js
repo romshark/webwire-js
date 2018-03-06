@@ -103,7 +103,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		const sessionKey = new SessionKey(session.key)
 		_session = {
 			key: sessionKey,
-			creationDate: session.crt,
+			creationDate: new Date(session.crt),
 			info: session.inf
 		}
 
@@ -114,7 +114,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		// Provide copy of the actual session to preserve its immutability
 		_onSessionCreated({
 			key: sessionKey,
-			creationDate: session.crt,
+			creationDate: new Date(session.crt),
 			info: session.inf
 		})
 	}
