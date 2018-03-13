@@ -41,7 +41,11 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 
 	// Load client state for this server address if any
 	const locStorKey = `webwire:${_serverAddr}`
-	let state = localStorage.getItem(locStorKey)
+
+	let state
+
+	if ( process.browser )
+		state = localStorage.getItem(locStorKey)
 
 	if (state != null) {
 		state = JSON.parse(state)
