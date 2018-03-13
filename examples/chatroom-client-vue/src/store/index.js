@@ -6,13 +6,15 @@ import getters from './getters'
 
 Vue.use(Vuex)
 
+const addr = process.env.API_SERVER || '127.0.0.1:9090'
+
 export function createStore () {
 	return new Vuex.Store({
 		state: {
 			messages: [],
 			api: {
 				user: null,
-				addr: '127.0.0.1:9090',
+				addr,
 				connected: false,
 			},
 		},

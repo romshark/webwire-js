@@ -4,7 +4,7 @@
   "author": "Roman Sharkov <roman.sharkov@qbeon.com>",
   "private": true,
   "scripts": {
-    "dev": "node server",
+    "dev": "cross-env PORT=1010 node server",
     "start": "cross-env NODE_ENV=production node server",
     "build": "rimraf dist && npm run build:client && npm run build:server",
     "build:client": "cross-env NODE_ENV=production webpack --config build/webpack.client.config.js --progress --hide-modules",
@@ -40,6 +40,7 @@
     "babel-preset-env": "^1.6.1",
     "chokidar": "^1.7.0",
     "css-loader": "^0.28.7",
+    "dotenv": "^5.0.1",
     "file-loader": "^1.1.5",
     "friendly-errors-webpack-plugin": "^1.6.1",
     "rimraf": "^2.6.2",
