@@ -19,6 +19,10 @@ export const Type = {
 	// when the maximum number of concurrent connections for a certain session was reached
 	MaxSessConnsReached: 4,
 
+	// SessionsDisabled is sent by the server in response to a session restoration request
+	// if sessions are disabled for the target server
+	SessionsDisabled: 5,
+
 	// SERVER
 
 	// SessionCreated is sent by the server
@@ -112,6 +116,9 @@ export const MinLen = {
 
 	// MaxSessConnsReached represents the minimum max session conns reached error message length
 	MaxSessConnsReached: 9,
+
+	// SessionsDisabled represents the minimum sessions disabled error message length
+	SessionsDisabled: 9,
 
 	// RestoreSession represents the minimum session restoration request message length
 	RestoreSession: 10,

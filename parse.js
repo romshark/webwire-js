@@ -182,6 +182,7 @@ function parseReplyShutdown(message) {
 
 function parseInternalError(message) {
 	if (message.length < MinMsgLen.ReplyInternalError) return {
+		// TODO: fix wrong error message
 		err: new Error(`Invalid reply  message, too short ` +
 			`(${message.length} / ${MinMsgLen.ReplyInternalError})`
 		)
@@ -198,6 +199,7 @@ function parseInternalError(message) {
 
 function parseSessionNotFound(message) {
 	if (message.length < MinMsgLen.SessionNotFound) return {
+		// TODO: fix wrong error message
 		err: new Error(`Invalid reply shutdown message, too short ` +
 			`(${message.length} / ${MinMsgLen.SessionNotFound})`
 		)
@@ -214,13 +216,31 @@ function parseSessionNotFound(message) {
 
 function parseMaxSessConnsReached(message) {
 	if (message.length < MinMsgLen.MaxSessConnsReached) return {
+		// TODO: fix wrong error message
 		err: new Error(`Invalid reply shutdown message, too short ` +
 			`(${message.length} / ${MinMsgLen.MaxSessConnsReached})`
 		)
 	}
 
+	// TODO: fix wrong error message
 	const err = new Error("Requested session wasn't found")
 	err.errType = "max_sess_conns_reached"
+
+	return {
+		id: message.subarray(1, 9),
+		reqError: err
+	}
+}
+
+function parseSessionsDisabled(message) {
+	if (message.length < MinMsgLen.SessionsDisabled) return {
+		err: new Error(`Invalid sessions disabled message, too short ` +
+			`(${message.length} / ${MinMsgLen.SessionsDisabled})`
+		)
+	}
+
+	const err = new Error("Sessions are disabled for this server")
+	err.errType = "sessions_disabled"
 
 	return {
 		id: message.subarray(1, 9),
@@ -350,6 +370,9 @@ export default function parse(msgObj) {
 				break
 			case MessageType.MaxSessConnsReached:
 				result = parseMaxSessConnsReached(message)
+				break
+			case MessageType.SessionsDisabled:
+				result = parseSessionsDisabled(message)
 				break
 
 			// Reply message format:
