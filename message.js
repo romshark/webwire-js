@@ -1,9 +1,23 @@
 export const Type = {
-	// SERVER/CLIENT
-
-	// MsgErrorReply is sent by the server
+	// ErrorReply is sent by the server
 	// and represents an error-reply to a previously sent request
 	ErrorReply: 0,
+
+	// ReplyShutdown is sent by the server when a request is received during server shutdown
+	// and can't therefore be processed
+	ReplyShutdown: 1,
+
+	// ReplyInternalError is sent by the server if an unexpected internal error arose during
+	// the processing of a request
+	ReplyInternalError: 2,
+
+	// SessionNotFound is sent by the server in response to an unfilfilled session restoration
+	// request due to the session not being found
+	SessionNotFound: 3,
+
+	// MaxSessConnsReached is sent by the server in response to an authentication request
+	// when the maximum number of concurrent connections for a certain session was reached
+	MaxSessConnsReached: 4,
 
 	// SERVER
 
@@ -86,6 +100,18 @@ export const MinLen = {
 
 	// ErrorReply represents the minimum error reply message length
 	ErrorReply: 10,
+
+	// ReplyShutdown represents the minimum shutdown reply message length
+	ReplyShutdown: 9,
+
+	// ReplyShutdown represents the minimum internal error reply message length
+	ReplyInternalError: 9,
+
+	// SessionNotFound represents the minimum session not found error message length
+	SessionNotFound: 9,
+
+	// MaxSessConnsReached represents the minimum max session conns reached error message length
+	MaxSessConnsReached: 9,
 
 	// RestoreSession represents the minimum session restoration request message length
 	RestoreSession: 10,

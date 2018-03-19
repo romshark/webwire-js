@@ -8,7 +8,7 @@ import SessionKey from './sessionKey'
 import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
 
-const supportedProtocolVersion = '1.1'
+const supportedProtocolVersion = '1.2'
 
 function getCallbacks(cbs) {
 	let onSignal = function() {}
@@ -175,6 +175,10 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 				payload: parsed.msg.payload
 			})
 			break
+		case MessageType.ReplyShutdown:
+		case MessageType.ReplyInternalError:
+		case MessageType.SessionNotFound:
+		case MessageType.MaxSessConnsReached:
 		case MessageType.ErrorReply:
 			handleFailure({
 				id: parsed.msg.id,

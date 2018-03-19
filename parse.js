@@ -166,6 +166,68 @@ function parseErrorReply(message) {
 	}
 }
 
+function parseReplyShutdown(message) {
+	if (message.length < MinMsgLen.ReplyShutdown) return {err: new Error(
+		`Invalid reply shutdown message, too short (${message.length} / ${MinMsgLen.ReplyShutdown})`
+	)}
+
+	const err = new Error("Server is currently being shutdown and won't process the request")
+	err.errType = "shutdown"
+
+	return {
+		id: message.subarray(1, 9),
+		reqError: err
+	}
+}
+
+function parseInternalError(message) {
+	if (message.length < MinMsgLen.ReplyInternalError) return {
+		err: new Error(`Invalid reply  message, too short ` +
+			`(${message.length} / ${MinMsgLen.ReplyInternalError})`
+		)
+	}
+
+	const err = new Error("Request failed due to an internal server error")
+	err.errType = "internal"
+
+	return {
+		id: message.subarray(1, 9),
+		reqError: err
+	}
+}
+
+function parseSessionNotFound(message) {
+	if (message.length < MinMsgLen.SessionNotFound) return {
+		err: new Error(`Invalid reply shutdown message, too short ` +
+			`(${message.length} / ${MinMsgLen.SessionNotFound})`
+		)
+	}
+
+	const err = new Error("Requested session wasn't found")
+	err.errType = "session_not_found"
+
+	return {
+		id: message.subarray(1, 9),
+		reqError: err
+	}
+}
+
+function parseMaxSessConnsReached(message) {
+	if (message.length < MinMsgLen.MaxSessConnsReached) return {
+		err: new Error(`Invalid reply shutdown message, too short ` +
+			`(${message.length} / ${MinMsgLen.MaxSessConnsReached})`
+		)
+	}
+
+	const err = new Error("Requested session wasn't found")
+	err.errType = "max_sess_conns_reached"
+
+	return {
+		id: message.subarray(1, 9),
+		reqError: err
+	}
+}
+
 function parseReplyBinary(message) {
 	// Minimum UTF8 reply message structure:
 	// 1. message type (1 byte)
@@ -239,7 +301,7 @@ function parseReplyUtf16(message) {
 	}
 }
 
-export default function Parse(msgObj) {
+export default function parse(msgObj) {
 	return new Promise(resolve => {
 		const fileReader = new FileReader()
 		fileReader.onload = function() {
@@ -275,6 +337,19 @@ export default function Parse(msgObj) {
 
 			case MessageType.ErrorReply:
 				result = parseErrorReply(message)
+				break
+
+			case MessageType.ReplyShutdown:
+				result = parseReplyShutdown(message)
+				break
+			case MessageType.ReplyInternalError:
+				result = parseInternalError(message)
+				break
+			case MessageType.SessionNotFound:
+				result = parseSessionNotFound(message)
+				break
+			case MessageType.MaxSessConnsReached:
+				result = parseMaxSessConnsReached(message)
 				break
 
 			// Reply message format:
