@@ -168,7 +168,7 @@ function parseErrorReply(message) {
 
 function parseReplyShutdown(message) {
 	if (message.length < MinMsgLen.ReplyShutdown) return {err: new Error(
-		`Invalid reply shutdown message, too short (${message.length} / ${MinMsgLen.ReplyShutdown})`
+		`Invalid shutdown error message, too short (${message.length} / ${MinMsgLen.ReplyShutdown})`
 	)}
 
 	const err = new Error("Server is currently being shutdown and won't process the request")
@@ -182,8 +182,7 @@ function parseReplyShutdown(message) {
 
 function parseInternalError(message) {
 	if (message.length < MinMsgLen.ReplyInternalError) return {
-		// TODO: fix wrong error message
-		err: new Error(`Invalid reply  message, too short ` +
+		err: new Error(`Invalid internal error message, too short ` +
 			`(${message.length} / ${MinMsgLen.ReplyInternalError})`
 		)
 	}
@@ -199,8 +198,7 @@ function parseInternalError(message) {
 
 function parseSessionNotFound(message) {
 	if (message.length < MinMsgLen.SessionNotFound) return {
-		// TODO: fix wrong error message
-		err: new Error(`Invalid reply shutdown message, too short ` +
+		err: new Error(`Invalid session not found error message, too short ` +
 			`(${message.length} / ${MinMsgLen.SessionNotFound})`
 		)
 	}
@@ -216,14 +214,13 @@ function parseSessionNotFound(message) {
 
 function parseMaxSessConnsReached(message) {
 	if (message.length < MinMsgLen.MaxSessConnsReached) return {
-		// TODO: fix wrong error message
-		err: new Error(`Invalid reply shutdown message, too short ` +
+		err: new Error(`Invalid max session connections reached error message, too short ` +
 			`(${message.length} / ${MinMsgLen.MaxSessConnsReached})`
 		)
 	}
 
 	// TODO: fix wrong error message
-	const err = new Error("Requested session wasn't found")
+	const err = new Error("Maximum concurrent connections reached for requested session")
 	err.errType = "max_sess_conns_reached"
 
 	return {
