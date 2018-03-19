@@ -44,20 +44,12 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 
 	let state
 
-	if ( process.browser )
-		state = localStorage.getItem(locStorKey)
-
+	if (process.browser) state = localStorage.getItem(locStorKey)
 	if (state != null) {
 		state = JSON.parse(state)
 		state.session = new SessionKey(state.session)
 	}
 	else state = {}
-
-	// Verify if another client is already connected to this server
-	if (activeClients[_serverAddr]) throw new Error(
-		`Another WebWire client is already connected to host ${_serverAddr}`
-	)
-	else activeClients[_serverAddr] = true
 
 	// Default request timeout is 60 seconds by default
 	const _defaultTimeout = defaultTimeout ? defaultTimeout : 60000
@@ -350,37 +342,41 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 	// returns an error in case of a connection failure
 	function connect() {
 		if (_isConnected) return Promise.resolve()
-		return new Promise(async resolve => {
-			const err = await verifyProtocolVersion()
-			if (err != null) return resolve(
-				new Error("Protocol version verification error: " + err)
-			)
-
-			_conn = new Socket("ws://" + _serverAddr + "/")
-			_conn.onOpen(async () => {
-				_isConnected = true
-
-				if (_session == null) return resolve()
-
-				// Try to automatically restore previous session
-				const err = await tryRestoreSession(_session.key.bytes)
-				if (err != null) console.warn(
-					`WebWire client: couldn't restore session on reconnection: ${err}`
+		return new Promise(async (resolve, reject) => {
+			try {
+				const err = await verifyProtocolVersion()
+				if (err != null) return resolve(
+					new Error("Protocol version verification error: " + err)
 				)
-				resolve()
-			})
-			_conn.onError(err => {
-				console.error("WebWire client error:", err)
-				resolve(new Error("WebSocket error: " + err))
-			})
-			_conn.onMessage(msg => handleMessage(msg))
-			_conn.onClose(event => {
-				_isConnected = false
-				// See http://tools.ietf.org/html/rfc6455#section-7.4.1
-				if (event.code !== 1000 && event.code !== 1001) console.error(
-					"WebWire abnormal closure error: code: " + event.code
-				)
-			})
+
+				_conn = new Socket("ws://" + _serverAddr + "/")
+				_conn.onOpen(async () => {
+					_isConnected = true
+
+					if (_session == null) return resolve()
+
+					// Try to automatically restore previous session
+					const err = await tryRestoreSession(_session.key.bytes)
+					if (err != null) console.warn(
+						`WebWire client: couldn't restore session on reconnection: ${err}`
+					)
+					resolve()
+				})
+				_conn.onError(err => {
+					console.error("WebWire client error:", err)
+					resolve(new Error("WebSocket error: " + err))
+				})
+				_conn.onMessage(msg => handleMessage(msg))
+				_conn.onClose(event => {
+					_isConnected = false
+					// See http://tools.ietf.org/html/rfc6455#section-7.4.1
+					if (event.code !== 1000 && event.code !== 1001) console.error(
+						"WebWire abnormal closure error: code: " + event.code
+					)
+				})
+			} catch(err) {
+				reject(err)
+			}
 		})
 	}
 

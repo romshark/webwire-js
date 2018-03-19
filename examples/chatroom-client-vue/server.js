@@ -8,6 +8,7 @@ const compression = require('compression')
 const microcache = require('route-cache')
 const resolve = file => path.resolve(__dirname, file)
 const { createBundleRenderer } = require('vue-server-renderer')
+global.WebSocket = require('ws')
 
 const fetch = require('node-fetch')
 global.fetch = fetch
