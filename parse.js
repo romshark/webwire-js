@@ -116,8 +116,8 @@ function parseSignalUtf16(message) {
 	const nameLen = message.subarray(1, 2)[0]
 
 	// Determine minimum required message length
-	const minMsgSize = MinMsgLen.SignalUtf16 + nameLen
-	const payloadOffset = 2 + nameLen
+	let minMsgSize = MinMsgLen.SignalUtf16 + nameLen
+	let payloadOffset = 2 + nameLen
 
 	// Check whether a name padding byte is to be expected
 	if (nameLen % 2 !== 0) {
