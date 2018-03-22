@@ -317,86 +317,102 @@ function parseReplyUtf16(message) {
 		payload: payload
 	}
 }
+function parseMsg(message) {
+	if (message.length < 1) return resolve({err: new Error("Invalid message, too short")})
+	let payloadEncoding = "binary"
 
-export default function parse(msgObj) {
-	return new Promise(resolve => {
-		const fileReader = new FileReader()
-		fileReader.onload = function() {
-			const message = new Uint8Array(this.result)
+	// Read type
+	const msgType = message[0]
+	let result
 
-			if (message.length < 1) return resolve({err: new Error("Invalid message, too short")})
-			let payloadEncoding = "binary"
+	switch (msgType) {
+	// Special notifications
+	case MessageType.SessionCreated:
+		result = parseSessionCreated(message)
+		break
+	case MessageType.SessionClosed:
+		result = parseSessionClosed(message)
+		break
 
-			// Read type
-			const msgType = message[0]
-			let result
+	// Signals
+	case MessageType.SignalBinary:
+		result = parseSignalBinary(message)
+		break
+	case MessageType.SignalUtf8:
+		payloadEncoding = "utf8"
+		result = parseSignalUtf8(message)
+		break
+	case MessageType.SignalUtf16:
+		payloadEncoding = "utf16"
+		result = parseSignalUtf16(message)
+		break
 
-			switch (msgType) {
-			case MessageType.SessionCreated:
-				result = parseSessionCreated(message)
-				break
+	// Special request replies
+	case MessageType.ReplyShutdown:
+		result = parseReplyShutdown(message)
+		break
+	case MessageType.ReplyInternalError:
+		result = parseInternalError(message)
+		break
+	case MessageType.SessionNotFound:
+		result = parseSessionNotFound(message)
+		break
+	case MessageType.MaxSessConnsReached:
+		result = parseMaxSessConnsReached(message)
+		break
+	case MessageType.SessionsDisabled:
+		result = parseSessionsDisabled(message)
+		break
+	case MessageType.ErrorReply:
+		result = parseErrorReply(message)
+		break
+	// Request replies
+	case MessageType.ReplyBinary:
+		result = parseReplyBinary(message)
+		break
+	case MessageType.ReplyUtf8:
+		payloadEncoding = "utf8"
+		result = parseReplyUtf8(message)
+		break
+	case MessageType.ReplyUtf16:
+		payloadEncoding = "utf16"
+		result = parseReplyUtf16(message)
+		break
 
-			case MessageType.SessionClosed:
-				result = parseSessionClosed(message)
-				break
+	// Ignore messages of unsupported message type
+	default:
+		result = {err: new Error(`Unsupported message type ${msgType}`)}
+	}
 
-			case MessageType.SignalBinary:
-				result = parseSignalBinary(message)
-				break
-			case MessageType.SignalUtf8:
-				payloadEncoding = "utf8"
-				result = parseSignalUtf8(message)
-				break
-			case MessageType.SignalUtf16:
-				payloadEncoding = "utf16"
-				result = parseSignalUtf16(message)
-				break
+	if (result.err != null) return {err: result.err}
+	else return {
+		type: msgType,
+		payloadEncoding: payloadEncoding,
+		msg: result
+	}
+}
 
-			case MessageType.ErrorReply:
-				result = parseErrorReply(message)
-				break
-
-			case MessageType.ReplyShutdown:
-				result = parseReplyShutdown(message)
-				break
-			case MessageType.ReplyInternalError:
-				result = parseInternalError(message)
-				break
-			case MessageType.SessionNotFound:
-				result = parseSessionNotFound(message)
-				break
-			case MessageType.MaxSessConnsReached:
-				result = parseMaxSessConnsReached(message)
-				break
-			case MessageType.SessionsDisabled:
-				result = parseSessionsDisabled(message)
-				break
-
-			// Reply message format:
-			case MessageType.ReplyBinary:
-				result = parseReplyBinary(message)
-				break
-			case MessageType.ReplyUtf8:
-				payloadEncoding = "utf8"
-				result = parseReplyUtf8(message)
-				break
-			case MessageType.ReplyUtf16:
-				payloadEncoding = "utf16"
-				result = parseReplyUtf16(message)
-				break
-
-			// Ignore messages of unsupported message type
-			default:
-				result = {err: new Error(`Unsupported message type ${msgType}`)}
+export default function parse(msg) {
+	return new Promise((resolve, reject) => {
+		try {
+			if (process.browser) {
+				const reader = new FileReader()
+				reader.onerror = function(event) {
+					reject(event.target.error)
+				}
+				reader.onload = function() {
+					resolve(parseMsg(new Uint8Array(this.result)))
+				}
+				reader.readAsArrayBuffer(msg)
+			} else {
+				resolve(parseMsg(new Uint8Array(
+					msg.buffer,
+					msg.byteOffset,
+					msg.byteLength / Uint8Array.BYTES_PER_ELEMENT
+				)))
 			}
-
-			if (result.err != null) return resolve({err: result.err})
-			else return resolve({
-				type: msgType,
-				payloadEncoding: payloadEncoding,
-				msg: result
-			})
+		} catch(excep) {
+			reject(excep)
 		}
-		fileReader.readAsArrayBuffer(msgObj)
 	})
 }

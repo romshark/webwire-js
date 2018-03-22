@@ -2,8 +2,8 @@ import WebWireClient from '../../../../index.js'
 
 const logEvents = !!process.env.DEBUG_API
 
-function init(serverAddr, callbacks) {
-	api.client = new WebWireClient(serverAddr, callbacks)
+function init(serverAddr, handlers) {
+	api.client = new WebWireClient(serverAddr, { handlers })
 }
 
 const api = {

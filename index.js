@@ -10,20 +10,21 @@ import NamelessRequestMessage from './namelessReqMsg'
 
 const supportedProtocolVersion = '1.2'
 
-function getCallbacks(cbs) {
+function getCallbacks(opts) {
 	let onSignal = function() {}
 	let onSessionCreated = function() {}
 	let onSessionClosed = function() {}
 
-	if (cbs == null) return {
+	if (opts == null || opts.handlers == null) return {
 		onSignal,
 		onSessionCreated,
 		onSessionClosed
 	}
 
-	if (cbs.onSignal instanceof Function) onSignal = cbs.onSignal
-	if (cbs.onSessionCreated instanceof Function) onSessionCreated = cbs.onSessionCreated
-	if (cbs.onSessionClosed instanceof Function) onSessionClosed = cbs.onSessionClosed
+	const handlers = opts.handlers
+	if (handlers.onSignal instanceof Function) onSignal = handlers.onSignal
+	if (handlers.onSessionCreated instanceof Function) onSessionCreated = handlers.onSessionCreated
+	if (handlers.onSessionClosed instanceof Function) onSessionClosed = handlers.onSessionClosed
 
 	return {
 		onSignal,
@@ -34,10 +35,12 @@ function getCallbacks(cbs) {
 
 const activeClients = {}
 
-export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
+export default function WebWireClient(_serverAddr, options) {
 	if (typeof _serverAddr !== "string" || _serverAddr.length < 1) throw new Error(
 		"Invalid WebWire server address"
 	)
+
+	if (options == null) options = {}
 
 	// Load client state for this server address if any
 	const locStorKey = `webwire:${_serverAddr}`
@@ -52,7 +55,9 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 	else state = {}
 
 	// Default request timeout is 60 seconds by default
-	const _defaultTimeout = defaultTimeout ? defaultTimeout : 60000
+	const _defaultReqTimeout = options.defaultReqTimeout ? options.defaultReqTimeout : 60000
+	const _reconnInterval = options.reconnectionInterval ? options.reconnectionInterval : 2000
+	const _autoconnect = options.autoconnect ? options.autoconnect : true
 	const _pendingRequests = {}
 	let _session = state.session ? {key: state.session} : null
 	let _conn = null
@@ -62,7 +67,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		onSignal: _onSignal,
 		onSessionCreated: _onSessionCreated,
 		onSessionClosed: _onSessionClosed
-	} = getCallbacks(callbacks)
+	} = getCallbacks(options)
 
 	// Define interface methods
 	Object.defineProperty(this, 'connect', {value: connect})
@@ -209,11 +214,44 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		const metadata = await resp.json()
 		const protoVersion = metadata['protocol-version']
 		if (protoVersion !== supportedProtocolVersion) {
-			return new Error(
+			const err = new Error(
 				`Unsupported protocol version: ${protoVersion}` +
 				`(${supportedProtocolVersion} is supported by this client)`
 			)
+			err.errType = 'incomp'
+			return err
 		}
+	}
+
+	function sleep(duration) {
+		return new Promise(resolve => setTimeout(resolve, duration))
+	}
+
+	function tryReconnect(timeoutDur) {
+		if (_isConnected) return Promise.resolve()
+		return new Promise(async (resolve, reject) => {
+			try {
+				if (_autoconnect) {
+					setTimeout(resolve, timeoutDur)
+					while(1) {
+						const err = await connect()
+						if (err == null) return resolve()
+						else if (err != null) {
+							if (err.errType == 'disconnected') {
+								await sleep(_reconnInterval)
+								continue
+							} else {
+								return resolve({err})
+							}
+						}
+					}
+				} else {
+					return await connect()
+				}
+			} catch(excep) {
+				reject(excep)
+			}
+		})
 	}
 
 	// Sends a request containing the given payload to the server.
@@ -222,91 +260,107 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 	// Optionally takes a timeout, otherwise default timeout is applied
 	function sendRequest(name, payload, encoding, timeoutDuration) {
 		// Connect before attempting to send the request
-		return new Promise(async resolve => {
-			const reqMsg = new RequestMessage(name, payload, encoding)
-			const reqIdBytes = reqMsg.id.bytes
+		return new Promise(async (resolve, reject) => {
+			try {
+				const reqMsg = new RequestMessage(name, payload, encoding)
+				const reqIdBytes = reqMsg.id.bytes
+				const timeoutDur = timeoutDuration ? timeoutDuration : _defaultReqTimeout
 
-			let err = await connect()
-			if (err != null) return resolve({err: err})
-			let timeout = setTimeout(() => {
-				// Deregister request
-				delete _pendingRequests[reqIdBytes]
-				timeout = null
-
-				let newErr = new Error('Request timed out')
-				newErr.code = 'TIMEOUT'
-				resolve({err: newErr})
-			}, timeoutDuration ? timeoutDuration : _defaultTimeout)
-			const req = {
-				fulfill(reply) {
-					// If the request already timed out then drop the reply
-					if (timeout == null) return
-
+				let timeout = setTimeout(() => {
+					// Deregister request
 					delete _pendingRequests[reqIdBytes]
-					clearTimeout(timeout)
+					timeout = null
 
-					resolve({reply: reply})
-				},
-				fail(err) {
-					// If the request already timed out then drop the reply
-					if (timeout == null) return
+					let newErr = new Error('Request timed out')
+					newErr.errType = 'timeout'
+					resolve({err: newErr})
+				}, timeoutDur)
 
-					delete _pendingRequests[reqIdBytes]
-					clearTimeout(timeout)
+				let err = await tryReconnect(timeoutDur)
+				if (err != null) return resolve({err: err})
 
-					resolve({err: err})
+				const req = {
+					fulfill(reply) {
+						// If the request already timed out then drop the reply
+						if (timeout == null) return
+
+						delete _pendingRequests[reqIdBytes]
+						clearTimeout(timeout)
+
+						resolve({reply: reply})
+					},
+					fail(err) {
+						// If the request already timed out then drop the reply
+						if (timeout == null) return
+
+						delete _pendingRequests[reqIdBytes]
+						clearTimeout(timeout)
+
+						resolve({err: err})
+					}
 				}
+
+				// Register request
+				_pendingRequests[reqIdBytes] = req
+
+				// Send request
+				_conn.send(reqMsg.bytes)
+			} catch(excep) {
+				reject(excep)
 			}
-
-			// Register request
-			_pendingRequests[reqIdBytes] = req
-
-			// Send request
-			_conn.send(reqMsg.bytes)
 		})
 	}
 
 	function sendNamelessRequest(messageType, payload, timeoutDuration) {
 		if (!_isConnected) return Promise.resolve({err: new Error("Not connected")})
-		return new Promise(resolve => {
-			const reqMsg = new NamelessRequestMessage(messageType, payload)
-			const reqIdBytes = reqMsg.id.bytes
+		return new Promise(async (resolve, reject) => {
+			try {
+				const reqMsg = new NamelessRequestMessage(messageType, payload)
+				const reqIdBytes = reqMsg.id.bytes
+				const timeoutDur = timeoutDuration ? timeoutDuration : _defaultReqTimeout
 
-			let timeout = setTimeout(() => {
-				// Deregister request
-				delete _pendingRequests[reqIdBytes]
-				timeout = null
-
-				let newErr = new Error('Request timed out')
-				newErr.code = 'TIMEOUT'
-				resolve({err: newErr})
-			}, timeoutDuration ? timeoutDuration : _defaultTimeout)
-			const req = {
-				fulfill(reply) {
-					// If the request already timed out then drop the reply
-					if (timeout == null) return
-
+				let timeout = setTimeout(() => {
+					// Deregister request
 					delete _pendingRequests[reqIdBytes]
-					clearTimeout(timeout)
+					timeout = null
 
-					resolve({reply: reply})
-				},
-				fail(err) {
-					// If the request already timed out then drop the reply
-					if (timeout == null) return
+					let newErr = new Error('Request timed out')
+					newErr.errType = 'timeout'
+					resolve({err: newErr})
+				}, timeoutDur)
 
-					delete _pendingRequests[reqIdBytes]
-					clearTimeout(timeout)
+				let err = await tryReconnect(timeoutDur)
+				if (err != null) return resolve({err: err})
 
-					resolve({err: err})
+				const req = {
+					fulfill(reply) {
+						// If the request already timed out then drop the reply
+						if (timeout == null) return
+
+						delete _pendingRequests[reqIdBytes]
+						clearTimeout(timeout)
+
+						resolve({reply: reply})
+					},
+					fail(err) {
+						// If the request already timed out then drop the reply
+						if (timeout == null) return
+
+						delete _pendingRequests[reqIdBytes]
+						clearTimeout(timeout)
+
+						resolve({err: err})
+					}
 				}
+
+				// Register request
+				_pendingRequests[reqIdBytes] = req
+
+				// Send request
+				_conn.send(reqMsg.bytes)
+			} catch(excep) {
+				reject(excep)
 			}
-
-			// Register request
-			_pendingRequests[reqIdBytes] = req
-
-			// Send request
-			_conn.send(reqMsg.bytes)
 		})
 	}
 
@@ -345,9 +399,7 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 		return new Promise(async (resolve, reject) => {
 			try {
 				const err = await verifyProtocolVersion()
-				if (err != null) return resolve(
-					new Error("Protocol version verification error: " + err)
-				)
+				if (err != null) return resolve(err)
 
 				_conn = new Socket("ws://" + _serverAddr + "/")
 				_conn.onOpen(async () => {
@@ -364,7 +416,9 @@ export default function WebWireClient(_serverAddr, callbacks, defaultTimeout) {
 				})
 				_conn.onError(err => {
 					console.error("WebWire client error:", err)
-					resolve(new Error("WebSocket error: " + err))
+					const connErr = new Error("WebSocket error: " + err)
+					connErr.errType = "disconnected"
+					resolve(connErr)
 				})
 				_conn.onMessage(msg => handleMessage(msg))
 				_conn.onClose(event => {
