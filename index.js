@@ -298,12 +298,9 @@ export default function WebWireClient(_serverAddr, options) {
 		// Connect before attempting to send the request
 		return new Promise(async (resolve, reject) => {
 			try {
-				let reqMsg
-				if(messageType && !name) {
-					reqMsg = new NamelessRequestMessage(messageType, payload)
-				} else {
-					reqMsg = new RequestMessage(name, payload, encoding)
-				}
+				const reqMsg = messageType && !name ?
+					new NamelessRequestMessage(messageType, payload) :
+					new RequestMessage(name, payload, encoding)
 				const reqIdBytes = reqMsg.id.bytes
 				const timeoutDur = timeoutDuration ? timeoutDuration : _defaultReqTimeout
 

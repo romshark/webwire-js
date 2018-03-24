@@ -53,9 +53,9 @@ export default function RequestMessage(name, payload, encoding) {
 		}
 
 		// Write payload at an offset equal to the header size (which includes the padding)
-		const payloadBuf = new Uint8Array(_buf, headerSize, payload.length)
-		for (let i = 0; i < payload.length; i++) {
-			payloadBuf[i] = payload.charCodeAt(i)
+		const payloadBuf = new Uint8Array(_buf, headerSize, encodedPayload.length)
+		for (let i = 0; i < encodedPayload.length; i++) {
+			payloadBuf[i] = encodedPayload[i]
 		}
 	}
 	// Encode string into UTF16 payload
