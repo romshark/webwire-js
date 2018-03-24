@@ -85,7 +85,11 @@ export default function WebWireClient(_serverAddr, options) {
 
 	// Define interface methods
 	Object.defineProperty(this, 'connect', {value: connect})
-	Object.defineProperty(this, 'request', {value: sendRequest})
+	Object.defineProperty(this, 'request', {
+		value: function(name, payload, encoding, timeoutDuration) {
+			return sendRequest(null, name, payload, encoding, timeoutDuration)
+		}
+	})
 	Object.defineProperty(this, 'signal', {value: signal})
 	Object.defineProperty(this, 'restoreSession', {value: restoreSession})
 	Object.defineProperty(this, 'closeSession', {value: closeSession})
@@ -290,63 +294,16 @@ export default function WebWireClient(_serverAddr, options) {
 	// Returns a promise that is resolved when the server replies.
 	// Automatically connects to the server if no connection has yet been established.
 	// Optionally takes a timeout, otherwise default timeout is applied
-	function sendRequest(name, payload, encoding, timeoutDuration) {
+	function sendRequest(messageType, name, payload, encoding, timeoutDuration) {
 		// Connect before attempting to send the request
 		return new Promise(async (resolve, reject) => {
 			try {
-				const reqMsg = new RequestMessage(name, payload, encoding)
-				const reqIdBytes = reqMsg.id.bytes
-				const timeoutDur = timeoutDuration ? timeoutDuration : _defaultReqTimeout
-
-				let timeout = setTimeout(() => {
-					// Deregister request
-					delete _pendingRequests[reqIdBytes]
-					timeout = null
-
-					let newErr = new Error('Request timed out')
-					newErr.errType = 'timeout'
-					resolve({err: newErr})
-				}, timeoutDur)
-
-				let err = await tryAutoconnect(timeoutDur)
-				if (err != null) return resolve({err: err})
-
-				const req = {
-					fulfill(reply) {
-						// If the request already timed out then drop the reply
-						if (timeout == null) return
-
-						delete _pendingRequests[reqIdBytes]
-						clearTimeout(timeout)
-
-						resolve({reply: reply})
-					},
-					fail(err) {
-						// If the request already timed out then drop the reply
-						if (timeout == null) return
-
-						delete _pendingRequests[reqIdBytes]
-						clearTimeout(timeout)
-
-						resolve({err: err})
-					}
+				let reqMsg
+				if(messageType && !name) {
+					reqMsg = new NamelessRequestMessage(messageType, payload)
+				} else {
+					reqMsg = new RequestMessage(name, payload, encoding)
 				}
-
-				// Register request
-				_pendingRequests[reqIdBytes] = req
-
-				// Send request
-				_conn.send(reqMsg.bytes)
-			} catch(excep) {
-				reject(excep)
-			}
-		})
-	}
-
-	function sendNamelessRequest(messageType, payload, timeoutDuration) {
-		return new Promise(async (resolve, reject) => {
-			try {
-				const reqMsg = new NamelessRequestMessage(messageType, payload)
 				const reqIdBytes = reqMsg.id.bytes
 				const timeoutDur = timeoutDuration ? timeoutDuration : _defaultReqTimeout
 
@@ -396,8 +353,9 @@ export default function WebWireClient(_serverAddr, options) {
 	}
 
 	async function tryRestoreSession(sessionKey) {
-		const {reply, err: reqErr} = await sendNamelessRequest(
+		const {reply, err: reqErr} = await sendRequest(
 			MessageType.RestoreSession,
+			null,
 			sessionKey
 		)
 		if (reqErr != null) {
@@ -511,10 +469,7 @@ export default function WebWireClient(_serverAddr, options) {
 			_session = null
 			return
 		}
-		let {err: reqErr} = await sendNamelessRequest(
-			MessageType.CloseSession,
-			null
-		)
+		let {err: reqErr} = await sendRequest(MessageType.CloseSession)
 		if (reqErr != null) return reqErr
 		_session = null
 		localStorage.removeItem(locStorKey)
