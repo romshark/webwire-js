@@ -11,7 +11,8 @@ import Api from './api'
 
 export default {
 	async created() {
-		// Initialize API client
+		// Initialize API client only in the browser
+		if (!process.browser) return
 		let err = await this.$store.dispatch('CONNECT')
 		if (err != null) console.error('Couldn\'t connect: ', err)
 	}
