@@ -12,21 +12,23 @@ export default {
 					commit('PUSH_MESSAGE', JSON.parse(signal.payload))
 				},
 				onSessionCreated: newSession => {
-					console.log(newSession.info.username)
 					commit('SET_API_USER', newSession.info.username)
 				},
 				onSessionClosed: () => {
 					commit('SET_API_USER', null)
+				},
+				onDisconnected: () => {
+					commit('SET_API_CONNECTION_STATUS', false)
+				},
+				onConnected: () => {
+					commit('SET_API_CONNECTION_STATUS', true)
+					if (Api.client.session != null) commit(
+						'SET_API_USER',
+						Api.client.session.info.username
+					)
 				}
 			}
 		)
-		let err = await Api.client.connect()
-		if (err != null) {
-			err.message = 'Failed connecting: ' + err.message
-			return err
-		}
-		commit('SET_API_CONNECTION_STATUS', true)
-		if (Api.client.session != null) commit('SET_API_USER', Api.client.session.info.username)
 	},
 
 	// SIGNIN tries to authenticate the API client using the provided credentials.
@@ -59,12 +61,12 @@ export default {
 		if (message.length < 1 || message === '\n') return
 
 		if (!state.api.connected) {
-			let err = await dispatch("CONNECT")
+			const err = await dispatch("CONNECT")
 			if (err != null) return err
 		}
 		// UTF8-encode the message in the payload
 		// the server doesn't support standard UTF16 JavaScript strings
-		let err = await Api.client.signal("", message, "utf8")
+		const {err} = await Api.client.request("msg", message, "utf8")
 		if (err != null) return err
 	}
 }

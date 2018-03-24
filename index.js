@@ -14,26 +14,38 @@ function getCallbacks(opts) {
 	let onSignal = function() {}
 	let onSessionCreated = function() {}
 	let onSessionClosed = function() {}
+	let onDisconnected = function() {}
+	let onConnected = function() {}
 
 	if (opts == null || opts.handlers == null) return {
 		onSignal,
 		onSessionCreated,
-		onSessionClosed
+		onSessionClosed,
+		onDisconnected,
+		onConnected
 	}
 
 	const handlers = opts.handlers
 	if (handlers.onSignal instanceof Function) onSignal = handlers.onSignal
 	if (handlers.onSessionCreated instanceof Function) onSessionCreated = handlers.onSessionCreated
 	if (handlers.onSessionClosed instanceof Function) onSessionClosed = handlers.onSessionClosed
+	if (handlers.onDisconnected instanceof Function) onDisconnected = handlers.onDisconnected
+	if (handlers.onConnected instanceof Function) onConnected = handlers.onConnected
 
 	return {
 		onSignal,
 		onSessionCreated,
-		onSessionClosed
+		onSessionClosed,
+		onDisconnected,
+		onConnected,
 	}
 }
 
-const activeClients = {}
+const ClientStatus = {
+	Disabled: 0,
+	Disconnected: 1,
+	Connected: 2
+}
 
 export default function WebWireClient(_serverAddr, options) {
 	if (typeof _serverAddr !== "string" || _serverAddr.length < 1) throw new Error(
@@ -61,12 +73,14 @@ export default function WebWireClient(_serverAddr, options) {
 	const _pendingRequests = {}
 	let _session = state.session ? {key: state.session} : null
 	let _conn = null
-	let _isConnected = false
+	let _status = ClientStatus.Disconnected
 
 	const {
 		onSignal: _onSignal,
 		onSessionCreated: _onSessionCreated,
-		onSessionClosed: _onSessionClosed
+		onSessionClosed: _onSessionClosed,
+		onDisconnected: _onDisconnected,
+		onConnected: _onConnected
 	} = getCallbacks(options)
 
 	// Define interface methods
@@ -78,9 +92,14 @@ export default function WebWireClient(_serverAddr, options) {
 	Object.defineProperty(this, 'close', {value: close})
 
 	// Define interface properties
-	Object.defineProperty(this, 'isConnected', {
+	Object.defineProperty(this, 'status', {
 		get() {
-			return _isConnected
+			switch(_status) {
+			case ClientStatus.Disabled: return 'disabled'
+			case ClientStatus.Disconnected: return 'disconnected'
+			case ClientStatus.Connected: return 'connected'
+			default: 'invalid_client_status'
+			}
 		}
 	})
 	Object.defineProperty(this, 'session', {
@@ -99,6 +118,15 @@ export default function WebWireClient(_serverAddr, options) {
 		}
 	})
 	Object.freeze(this)
+
+	// Autoconnect
+	tryAutoconnect(0)
+	.then(err => {
+		if (err != null) console.error("WebWire: autoconnect failed:", err)
+	})
+	.catch(excep => {
+		console.warn('WebWire: autoconnect failed:', excep)
+	})
 
 	function handleSessionCreated(session) {
 		const sessionKey = new SessionKey(session.key)
@@ -157,7 +185,7 @@ export default function WebWireClient(_serverAddr, options) {
 		const parsed = await Parse(msgObj)
 
 		if (parsed.err != null) {
-			console.warn("Failed parsing message:", parsed.err)
+			console.error("WebWire: failed parsing message:", parsed.err)
 			return
 		}
 
@@ -198,7 +226,7 @@ export default function WebWireClient(_serverAddr, options) {
 			handleSessionClosed()
 			break
 		default:
-			console.warn("Strange message type received: ", parsed.type)
+			console.warn("WebWire: strange message type received: ", parsed.type)
 			break
 		}
 	}
@@ -207,19 +235,23 @@ export default function WebWireClient(_serverAddr, options) {
 	// to verify the server is running a supported protocol version
 	async function verifyProtocolVersion() {
 		// Initialize HTTP client
-		const resp = await fetch('http://' + _serverAddr + '/', {
-			method: 'WEBWIRE',
-			cache: 'no-cache',
-		})
-		const metadata = await resp.json()
-		const protoVersion = metadata['protocol-version']
-		if (protoVersion !== supportedProtocolVersion) {
-			const err = new Error(
-				`Unsupported protocol version: ${protoVersion}` +
-				`(${supportedProtocolVersion} is supported by this client)`
-			)
-			err.errType = 'incomp'
-			return err
+		try {
+			const resp = await fetch('http://' + _serverAddr + '/', {
+				method: 'WEBWIRE',
+				cache: 'no-cache',
+			})
+			const metadata = await resp.json()
+			const protoVersion = metadata['protocol-version']
+			if (protoVersion !== supportedProtocolVersion) {
+				const err = new Error(
+					`Unsupported protocol version: ${protoVersion}` +
+					`(${supportedProtocolVersion} is supported by this client)`
+				)
+				err.errType = 'incomp'
+				return err
+			}
+		} catch(excep) {
+			return excep
 		}
 	}
 
@@ -227,12 +259,12 @@ export default function WebWireClient(_serverAddr, options) {
 		return new Promise(resolve => setTimeout(resolve, duration))
 	}
 
-	function tryReconnect(timeoutDur) {
-		if (_isConnected) return Promise.resolve()
+	function tryAutoconnect(timeoutDur) {
+		if (_status != ClientStatus.Disconnected) return Promise.resolve()
 		return new Promise(async (resolve, reject) => {
 			try {
 				if (_autoconnect) {
-					setTimeout(resolve, timeoutDur)
+					if (timeoutDur > 0) setTimeout(resolve, timeoutDur)
 					while(1) {
 						const err = await connect()
 						if (err == null) return resolve()
@@ -276,7 +308,7 @@ export default function WebWireClient(_serverAddr, options) {
 					resolve({err: newErr})
 				}, timeoutDur)
 
-				let err = await tryReconnect(timeoutDur)
+				let err = await tryAutoconnect(timeoutDur)
 				if (err != null) return resolve({err: err})
 
 				const req = {
@@ -312,7 +344,6 @@ export default function WebWireClient(_serverAddr, options) {
 	}
 
 	function sendNamelessRequest(messageType, payload, timeoutDuration) {
-		if (!_isConnected) return Promise.resolve({err: new Error("Not connected")})
 		return new Promise(async (resolve, reject) => {
 			try {
 				const reqMsg = new NamelessRequestMessage(messageType, payload)
@@ -329,7 +360,7 @@ export default function WebWireClient(_serverAddr, options) {
 					resolve({err: newErr})
 				}, timeoutDur)
 
-				let err = await tryReconnect(timeoutDur)
+				let err = await tryAutoconnect(timeoutDur)
 				if (err != null) return resolve({err: err})
 
 				const req = {
@@ -388,30 +419,35 @@ export default function WebWireClient(_serverAddr, options) {
 		}
 	}
 
-	/****************************************************************\
-		Interface
-	\****************************************************************/
-
 	// Connects the client to the configured server and
 	// returns an error in case of a connection failure
 	function connect() {
-		if (_isConnected) return Promise.resolve()
+		if (_status == ClientStatus.Connected) return Promise.resolve()
 		return new Promise(async (resolve, reject) => {
 			try {
 				const err = await verifyProtocolVersion()
-				if (err != null) return resolve(err)
+				if (err != null) {
+					if (err.errType == 'incomp') throw err
+					const disconnErr = new Error('disconnected')
+					disconnErr.errType = 'disconnected'
+					return resolve(disconnErr)
+				}
 
 				_conn = new Socket("ws://" + _serverAddr + "/")
 				_conn.onOpen(async () => {
-					_isConnected = true
+					_status = ClientStatus.Connected
 
-					if (_session == null) return resolve()
+					if (_session == null) {
+						_onConnected()
+						return resolve()
+					}
 
 					// Try to automatically restore previous session
 					const err = await tryRestoreSession(_session.key.bytes)
 					if (err != null) console.warn(
-						`WebWire client: couldn't restore session on reconnection: ${err}`
+						`WebWire: couldn't restore session on reconnection: ${err}`
 					)
+					_onConnected()
 					resolve()
 				})
 				_conn.onError(err => {
@@ -421,15 +457,20 @@ export default function WebWireClient(_serverAddr, options) {
 					resolve(connErr)
 				})
 				_conn.onMessage(msg => handleMessage(msg))
-				_conn.onClose(event => {
-					_isConnected = false
+				_conn.onClose(async code => {
+					_status = ClientStatus.Disconnected
 					// See http://tools.ietf.org/html/rfc6455#section-7.4.1
-					if (event.code !== 1000 && event.code !== 1001) console.error(
-						"WebWire abnormal closure error: code: " + event.code
+					if (code !== 1000 && code !== 1001) console.warn(
+						"WebWire: abnormal closure error: code: " + code
 					)
+					_onDisconnected()
+
+					// Try autoconnect
+					const err = await tryAutoconnect(0)
+					if (err != null) console.error("WebWire: autoconnect failed:", err)
 				})
-			} catch(err) {
-				reject(err)
+			} catch(excep) {
+				reject(excep)
 			}
 		})
 	}
@@ -459,14 +500,14 @@ export default function WebWireClient(_serverAddr, options) {
 		if (connErr != null) return connErr
 		const err = await tryRestoreSession(sessionKey.bytes)
 		if (err != null) console.warn(
-			`WebWire client: couldn't restore session by key (${sessionKey.string}) : ${err}`
+			`WebWire: couldn't restore session by key (${sessionKey.string}) : ${err}`
 		)
 	}
 
 	// Closes the currently active session.
 	// Does nothing if there's no active session
 	async function closeSession() {
-		if (!_session || !_isConnected) {
+		if (!_session || _status < ClientStatus.Connected) {
 			_session = null
 			return
 		}
@@ -484,5 +525,6 @@ export default function WebWireClient(_serverAddr, options) {
 	function close() {
 		_conn.close()
 		_conn = null
+		_status = ClientStatus.Disabled
 	}
 }

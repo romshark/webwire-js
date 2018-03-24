@@ -110,7 +110,11 @@ export default {
 		margin-top: 1rem
 		margin-bottom: 1rem
 		& .message
-			padding-top: 1rem
+			background: white
+			margin-top: 1rem
+			border-radius: 1rem
+			padding: .8rem
+			box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)
 		& .message-header
 			display: flex
 			justify-content: space-between
