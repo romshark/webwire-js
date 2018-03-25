@@ -270,7 +270,6 @@ export default function WebWireClient(_serverAddr, options) {
 		return new Promise((resolve, reject) => {
 			// Simulate a dam by accumulating awaiting connection attempts
 			// and resolving them when connected
-			console.log('TRY AUTOCONN', _reconnecting)
 			if (_reconnecting != null) {
 				if (timeoutDur > 0) setTimeout(resolve, timeoutDur)
 				_reconnecting.then(resolve)
