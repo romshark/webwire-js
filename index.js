@@ -74,6 +74,7 @@ export default function WebWireClient(_serverAddr, options) {
 	let _session = state.session ? {key: state.session} : null
 	let _conn = null
 	let _status = ClientStatus.Disconnected
+	let _reconnecting = null
 
 	const {
 		onSignal: _onSignal,
@@ -263,30 +264,45 @@ export default function WebWireClient(_serverAddr, options) {
 		return new Promise(resolve => setTimeout(resolve, duration))
 	}
 
-	function tryAutoconnect(timeoutDur) {
+	async function tryAutoconnect(timeoutDur) {
 		if (_status != ClientStatus.Disconnected) return Promise.resolve()
-		return new Promise(async (resolve, reject) => {
-			try {
-				if (_autoconnect) {
+		if (!_autoconnect) return await connect()
+		return new Promise((resolve, reject) => {
+			// Simulate a dam by accumulating awaiting connection attempts
+			// and resolving them when connected
+			console.log('TRY AUTOCONN', _reconnecting)
+			if (_reconnecting != null) {
+				if (timeoutDur > 0) setTimeout(resolve, timeoutDur)
+				_reconnecting.then(resolve)
+				return
+			}
+			_reconnecting = new Promise(async flushDam => {
+				try {
 					if (timeoutDur > 0) setTimeout(resolve, timeoutDur)
 					while(1) {
 						const err = await connect()
-						if (err == null) return resolve()
+						if (err == null) {
+							resolve()
+							flushDam()
+							_reconnecting = null
+							return
+						}
 						else if (err != null) {
 							if (err.errType == 'disconnected') {
 								await sleep(_reconnInterval)
 								continue
 							} else {
-								return resolve({err})
+								resolve({err})
+								flushDam({err})
+								_reconnecting = null
+								return
 							}
 						}
 					}
-				} else {
-					return await connect()
+				} catch(excep) {
+					reject(excep)
 				}
-			} catch(excep) {
-				reject(excep)
-			}
+			})
 		})
 	}
 
