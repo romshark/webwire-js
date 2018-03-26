@@ -7,6 +7,7 @@ import SignalMessage from './signalMessage'
 import SessionKey from './sessionKey'
 import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
+import getEndpointMetadata from './getEndpointMetadata'
 
 const supportedProtocolVersion = '1.2'
 
@@ -47,15 +48,16 @@ const ClientStatus = {
 	Connected: 2
 }
 
-export default function WebWireClient(_serverAddr, options) {
-	if (typeof _serverAddr !== "string" || _serverAddr.length < 1) throw new Error(
-		"Invalid WebWire server address"
+export default function WebWireClient(_host, _port, options) {
+	if (typeof _host !== "string" || _host.length < 1) throw new Error(
+		"Invalid WebWire server host"
 	)
+	if (_port == null) _port = 80
 
 	if (options == null) options = {}
 
 	// Load client state for this server address if any
-	const locStorKey = `webwire:${_serverAddr}`
+	const locStorKey = `webwire:${_host}:${_port}`
 
 	let state
 
@@ -241,11 +243,8 @@ export default function WebWireClient(_serverAddr, options) {
 	async function verifyProtocolVersion() {
 		// Initialize HTTP client
 		try {
-			const resp = await fetch('http://' + _serverAddr + '/', {
-				method: 'WEBWIRE',
-				cache: 'no-cache',
-			})
-			const metadata = await resp.json()
+			const {metadata, err} = await getEndpointMetadata(_host, _port)
+			if (err != null) return err
 			const protoVersion = metadata['protocol-version']
 			if (protoVersion !== supportedProtocolVersion) {
 				const err = new Error(
@@ -271,13 +270,21 @@ export default function WebWireClient(_serverAddr, options) {
 			// Simulate a dam by accumulating awaiting connection attempts
 			// and resolving them when connected
 			if (_reconnecting != null) {
-				if (timeoutDur > 0) setTimeout(resolve, timeoutDur)
+				if (timeoutDur > 0) setTimeout(() => {
+					const err = new Error("Auto-connect attempt timed out")
+					err.errType = 'timeout'
+					resolve(err)
+				}, timeoutDur)
 				_reconnecting.then(resolve)
 				return
 			}
 			_reconnecting = new Promise(async flushDam => {
 				try {
-					if (timeoutDur > 0) setTimeout(resolve, timeoutDur)
+					if (timeoutDur > 0) setTimeout(() => {
+						const err = new Error("Auto-reconnect attempt timed out")
+						err.errType = 'timeout'
+						resolve(err)
+					}, timeoutDur)
 					while(1) {
 						const err = await connect()
 						if (err == null) {
@@ -403,7 +410,7 @@ export default function WebWireClient(_serverAddr, options) {
 					return resolve(disconnErr)
 				}
 
-				_conn = new Socket("ws://" + _serverAddr + "/")
+				_conn = new Socket(`ws://${_host}:${_port}/`)
 				_conn.onOpen(async () => {
 					_status = ClientStatus.Connected
 
@@ -435,7 +442,7 @@ export default function WebWireClient(_serverAddr, options) {
 					)
 					_onDisconnected()
 
-					// Try autoconnect
+					// Auto-reconnect on connection loss
 					const err = await tryAutoconnect(0)
 					if (err != null) console.error("WebWire: autoconnect failed:", err)
 				})

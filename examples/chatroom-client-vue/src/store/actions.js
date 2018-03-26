@@ -5,7 +5,8 @@ export default {
 	// Returns an error if anything goes wrong
 	async CONNECT({ commit, state }) {
 		Api.init(
-			state.api.addr,
+			state.api.host,
+			state.api.port,
 			{
 				// onSignal
 				onSignal: signal => {
