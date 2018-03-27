@@ -27,13 +27,13 @@ export default function NamelessRequestMessage(type, payload) {
 	// Write payload if any
 	if (payload != null) for (let i = 0; i < payloadSize; i++) writeBuf[9 + i] = payload[i]
 
-	Object.defineProperty(this, "bytes", {
+	Object.defineProperty(this, 'bytes', {
 		get: function() {
 			return new Uint8Array(_buf)
 		}
 	})
 
-	Object.defineProperty(this, "id", {
+	Object.defineProperty(this, 'id', {
 		get: function() {
 			return id
 		}

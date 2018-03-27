@@ -1,4 +1,4 @@
-import WebWireClient from '../../../../index.js'
+import WebWireClient from '../../../../lib/webwire'
 
 const logEvents = !!process.env.DEBUG_API
 
