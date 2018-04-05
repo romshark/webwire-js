@@ -9,7 +9,7 @@ import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
 import getEndpointMetadata from './getEndpointMetadata'
 
-const supportedProtocolVersion = '1.2'
+const supportedProtocolVersion = '1.3'
 
 function getCallbacks(opts) {
 	let onSignal = function() {}
@@ -168,8 +168,8 @@ export default function WebWireClient(_host, _port, options) {
 
 		// Fail the request
 		req.fail({
-			code: message.error.c,
-			message: message.error.m,
+			code: message.error.code,
+			message: message.error.message,
 		})
 	}
 

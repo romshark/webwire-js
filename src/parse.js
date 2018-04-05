@@ -1,4 +1,5 @@
 import utf8ArrayToStr from './utf8ArrayToStr'
+import asciiArrayToStr from './asciiArrayToStr'
 import {
 	Type as MessageType,
 	MinLen as MinMsgLen
@@ -156,13 +157,32 @@ function parseErrorReply(message) {
 		`Invalid error reply message, too short (${message.length} / ${MinMsgLen.ErrorReply})`
 	)}
 
-	const str = utf8ArrayToStr(message.subarray(9))
+	// Read error code length
+	const errCodeLen = message.subarray(9, 10)[0]
+
+	if (errCodeLen < 1) return {
+		err: new Error("Invalid error code length in error reply message")
+	}
+
+	// Verify total message size to prevent segmentation faults
+	// caused by inconsistent flags, this could happen if the specified
+	// error code length doesn't correspond to the actual length.
+	// Subtract 1 character already taken into account by MinMsgLen.ErrorReply
+	if (message.length < MinMsgLen.ErrorReply + errCodeLen - 1) return {
+		err: new Error(`Invalid error reply message, ` +
+			`too short for error code (${errCodeLen})`
+		)
+	}
+
+	// Read UTF8 encoded error message
+	const err = new Error(utf8ArrayToStr(message.subarray(10 + errCodeLen)))
+
+	// Read ASCII 7 bit encoded error code
+	err.code = asciiArrayToStr(message.subarray(10, 10 + errCodeLen))
 
 	return {
 		id: message.subarray(1, 9),
-
-		// Read payload as UTF8 encoded JSON
-		reqError: JSON.parse(str)
+		reqError: err
 	}
 }
 

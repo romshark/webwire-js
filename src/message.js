@@ -103,7 +103,7 @@ export const MinLen = {
 	ReplyUtf16: 10,
 
 	// ErrorReply represents the minimum error reply message length
-	ErrorReply: 10,
+	ErrorReply: 11,
 
 	// ReplyShutdown represents the minimum shutdown reply message length
 	ReplyShutdown: 9,
