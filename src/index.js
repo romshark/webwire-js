@@ -136,11 +136,11 @@ export default function WebWireClient(_host, _port, options) {
 	})
 
 	function handleSessionCreated(session) {
-		const sessionKey = new SessionKey(session.key)
+		const sessionKey = new SessionKey(session.k)
 		_session = {
 			key: sessionKey,
-			creationDate: new Date(session.crt),
-			info: session.inf
+			creationDate: new Date(session.c),
+			info: session.i
 		}
 
 		// Save session key to local storage for automatic restoration
@@ -150,8 +150,8 @@ export default function WebWireClient(_host, _port, options) {
 		// Provide copy of the actual session to preserve its immutability
 		_onSessionCreated({
 			key: sessionKey,
-			creationDate: new Date(session.crt),
-			info: session.inf
+			creationDate: new Date(session.c),
+			info: session.i
 		})
 	}
 
@@ -390,9 +390,9 @@ export default function WebWireClient(_host, _port, options) {
 		}
 		const decodedSession = JSON.parse(reply.payload)
 		_session = {
-			key: new SessionKey(decodedSession.key),
-			creationDate: new Date(decodedSession.crt),
-			info: decodedSession.inf
+			key: new SessionKey(decodedSession.k),
+			creationDate: new Date(decodedSession.c),
+			info: decodedSession.i
 		}
 	}
 
