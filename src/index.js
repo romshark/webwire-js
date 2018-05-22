@@ -267,7 +267,15 @@ export default function WebWireClient(_host, _port, options) {
 	}
 
 	async function tryAutoconnect(timeoutDur) {
-		if (_status != ClientStatus.Disconnected) return Promise.resolve()
+		if (_status == ClientStatus.Connecting) {
+			return new Promise((resolve, reject) => {
+				_connecting
+				.then(resolve)
+				.catch(reject)
+			})
+		} else if (_status != ClientStatus.Disconnected) {
+			return Promise.resolve()
+		}
 		if (!_autoconnect) return await connect()
 		return new Promise((resolve, reject) => {
 			// Simulate a dam by accumulating awaiting connection attempts
@@ -404,8 +412,10 @@ export default function WebWireClient(_host, _port, options) {
 	function connect() {
 		if (_status == ClientStatus.Connected) return Promise.resolve()
 		if (_connecting != null) {
-			return new Promise((resolve) => {
-				_connecting.then(resolve)
+			return new Promise((resolve, reject) => {
+				_connecting
+				.then(resolve)
+				.catch(reject)
 			})
 		}
 		_connecting = new Promise(async (resolve, reject) => {
