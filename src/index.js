@@ -45,7 +45,8 @@ function getCallbacks(opts) {
 const ClientStatus = {
 	Disabled: 0,
 	Disconnected: 1,
-	Connected: 2
+	Connected: 2,
+	Connecting: 3
 }
 
 export default function WebWireClient(_host, _port, options) {
@@ -77,6 +78,7 @@ export default function WebWireClient(_host, _port, options) {
 	let _conn = null
 	let _status = ClientStatus.Disconnected
 	let _reconnecting = null
+	let _connecting = null
 
 	const {
 		onSignal: _onSignal,
@@ -105,6 +107,7 @@ export default function WebWireClient(_host, _port, options) {
 			case ClientStatus.Disabled: return 'disabled'
 			case ClientStatus.Disconnected: return 'disconnected'
 			case ClientStatus.Connected: return 'connected'
+			case ClientStatus.Connecting: return 'connecting'
 			default: 'invalid_client_status'
 			}
 		}
@@ -400,7 +403,13 @@ export default function WebWireClient(_host, _port, options) {
 	// returns an error in case of a connection failure
 	function connect() {
 		if (_status == ClientStatus.Connected) return Promise.resolve()
-		return new Promise(async (resolve, reject) => {
+		if (_connecting != null) {
+			return new Promise((resolve) => {
+				_connecting.then(resolve)
+			})
+		}
+		_connecting = new Promise(async (resolve, reject) => {
+			_status = ClientStatus.Connecting
 			try {
 				const err = await verifyProtocolVersion()
 				if (err != null) {
@@ -450,6 +459,7 @@ export default function WebWireClient(_host, _port, options) {
 				reject(excep)
 			}
 		})
+		return _connecting
 	}
 
 	// Sends a signal containing the given payload to the server.
