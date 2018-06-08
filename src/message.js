@@ -23,6 +23,10 @@ export const Type = {
 	// if sessions are disabled for the target server
 	SessionsDisabled: 5,
 
+	// ReplyProtocolError is sent by the server in response to an invalid
+	// message violating the protocol
+	ReplyProtocolError: 6,
+
 	// SERVER
 
 	// SessionCreated is sent by the server
@@ -119,6 +123,9 @@ export const MinLen = {
 
 	// SessionsDisabled represents the minimum sessions disabled error message length
 	SessionsDisabled: 9,
+
+	// ReplyProtocolError represents the minimum protocol error message length
+	ReplyProtocolError: 9,
 
 	// RestoreSession represents the minimum session restoration request message length
 	RestoreSession: 10,

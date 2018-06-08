@@ -9,7 +9,7 @@ import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
 import getEndpointMetadata from './getEndpointMetadata'
 
-const supportedProtocolVersion = '1.3'
+const supportedProtocolVersion = '1.4'
 
 function getCallbacks(opts) {
 	let onSignal = function() {}

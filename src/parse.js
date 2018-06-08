@@ -216,6 +216,22 @@ function parseInternalError(message) {
 	}
 }
 
+function parseProtocolError(message) {
+	if (message.length < MinMsgLen.ReplyProtocolError) return {
+		err: new Error(`Invalid protocol error reply message, too short: ` +
+			`(${message.length} / ${MinMsgLen.ReplyProtocolError})`
+		)
+	}
+
+	const err = new Error("Protocol error")
+	err.errType = "protocol_error"
+
+	return {
+		id: message.subarray(1, 9),
+		reqError: err
+	}
+}
+
 function parseSessionNotFound(message) {
 	if (message.length < MinMsgLen.SessionNotFound) return {
 		err: new Error(`Invalid session not found error message, too short ` +
@@ -386,6 +402,10 @@ function parseMsg(message) {
 	case MessageType.ErrorReply:
 		result = parseErrorReply(message)
 		break
+	case MessageType.ReplyProtocolError:
+		result = parseProtocolError(message)
+		break
+
 	// Request replies
 	case MessageType.ReplyBinary:
 		result = parseReplyBinary(message)
