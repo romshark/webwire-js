@@ -303,8 +303,7 @@ export default function WebWireClient(_host, _port, options) {
 							flushDam()
 							_reconnecting = null
 							return
-						}
-						else if (err != null) {
+						} else {
 							if (err.errType == 'disconnected') {
 								await sleep(_reconnInterval)
 								continue
@@ -411,7 +410,7 @@ export default function WebWireClient(_host, _port, options) {
 	// returns an error in case of a connection failure
 	function connect() {
 		if (_status == ClientStatus.Connected) return Promise.resolve()
-		if (_connecting != null) {
+		else if (_connecting != null) {
 			return new Promise((resolve, reject) => {
 				_connecting
 				.then(resolve)
@@ -426,11 +425,13 @@ export default function WebWireClient(_host, _port, options) {
 					if (err.errType == 'incomp') throw err
 					const disconnErr = new Error('disconnected')
 					disconnErr.errType = 'disconnected'
+					_connecting = null
 					return resolve(disconnErr)
 				}
 
 				_conn = new Socket(`ws://${_host}:${_port}/`)
 				_conn.onOpen(async () => {
+					_connecting = null
 					_status = ClientStatus.Connected
 
 					if (_session == null) {
@@ -447,6 +448,7 @@ export default function WebWireClient(_host, _port, options) {
 					resolve()
 				})
 				_conn.onError(err => {
+					_connecting = null
 					console.error("WebWire client error:", err)
 					const connErr = new Error("WebSocket error: " + err)
 					connErr.errType = "disconnected"
