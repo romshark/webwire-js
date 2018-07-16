@@ -7,8 +7,6 @@
 </template>
 
 <script>
-import Api from './api'
-
 export default {
 	async created() {
 		// Initialize API client only in the browser
@@ -18,7 +16,6 @@ export default {
 	}
 }
 </script>
-
 
 <style lang="stylus">
 html, body

@@ -4,12 +4,12 @@
 export default function utf8ArrayToStr(byteArray) {
 	let out, i, len, c
 	let char2, char3
-	out = ""
+	out = ''
 	len = byteArray.length
 	i = 0
 	while (i < len) {
 		c = byteArray[i++]
-		switch (c >> 4) { 
+		switch (c >> 4) {
 		case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
 			// 0xxxxxxx
 			out += String.fromCharCode(c)
@@ -23,9 +23,11 @@ export default function utf8ArrayToStr(byteArray) {
 			// 1110 xxxx  10xx xxxx  10xx xxxx
 			char2 = byteArray[i++]
 			char3 = byteArray[i++]
-			out += String.fromCharCode(((c & 0x0F) << 12) |
-							((char2 & 0x3F) << 6) |
-							((char3 & 0x3F) << 0))
+			out += String.fromCharCode(
+				((c & 0x0F) << 12) |
+				((char2 & 0x3F) << 6) |
+				((char3 & 0x3F) << 0)
+			)
 			break
 		}
 	}

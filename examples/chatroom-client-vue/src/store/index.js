@@ -22,6 +22,6 @@ export function createStore () {
 		},
 		actions,
 		mutations,
-		getters
+		getters,
 	})
 }

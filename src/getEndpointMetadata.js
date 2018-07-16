@@ -5,28 +5,34 @@ function onNode(host, port) {
 			const req = http.request({
 				host,
 				port,
-				method: "WEBWIRE",
-				json: true
+				method: 'WEBWIRE',
+				json: true,
 			}, (res) => {
-				if (res.statusCode != 200) {
-					const disconnErr = new Error(`Unexpected response status: ${res.statusCode}`)
+				if (res.statusCode !== 200) {
+					const disconnErr = new Error(
+						`Unexpected response status: ${res.statusCode}`
+					)
 					disconnErr.errType = 'disconnected'
 					resolve({err: disconnErr})
 					return
 				}
 				let data = ''
-				res.on('data', chunk => data += chunk)
+				res.on('data', chunk => {
+					data += chunk
+				})
 				res.on('end', function() {
 					resolve({metadata: JSON.parse(data)})
 				})
 			})
 			req.on('error', err => {
-				const disconnErr = new Error(`Failed reading endpoint metadata: ${err.message}`)
+				const disconnErr = new Error(
+					`Failed reading endpoint metadata: ${err.message}`
+				)
 				disconnErr.errType = 'disconnected'
 				resolve({err: disconnErr})
 			})
 			req.end()
-		} catch(excep) {
+		} catch (excep) {
 			reject(excep)
 		}
 	})
@@ -36,15 +42,19 @@ function onBrowser(host, port) {
 	return new Promise((resolve, reject) => {
 		try {
 			const req = new XMLHttpRequest()
-			req.open("WEBWIRE", `http://${host}:${port}`, true)
+			req.open('WEBWIRE', `http://${host}:${port}`, true)
 			req.onload = function() {
 				if (req.readyState !== 4) {
-					const disconnErr = new Error(`Unexpected ready state: ${req.readyState}`)
+					const disconnErr = new Error(
+						`Unexpected ready state: ${req.readyState}`
+					)
 					disconnErr.errType = 'disconnected'
 					resolve({err: disconnErr})
 					return
-				} else if(req.status !== 200) {
-					const disconnErr = new Error(`Unexpected response status: ${req.status}`)
+				} else if (req.status !== 200) {
+					const disconnErr = new Error(
+						`Unexpected response status: ${req.status}`
+					)
 					disconnErr.errType = 'disconnected'
 					resolve({err: disconnErr})
 					return
@@ -57,7 +67,7 @@ function onBrowser(host, port) {
 				resolve({err: disconnErr})
 			}
 			req.send()
-		} catch(excep) {
+		} catch (excep) {
 			reject(excep)
 		}
 	})

@@ -1,14 +1,12 @@
-import WebWireClient from '../../../../lib/webwire'
-
-const logEvents = !!process.env.DEBUG_API
+import WebWireClient from '../../../../src'
 
 function init(host, port, handlers) {
-	api.client = new WebWireClient(host, port, { handlers })
+	api.client = new WebWireClient(host, port, {handlers})
 }
 
 const api = {
 	client: null,
-	init: init
+	init: init,
 }
 
 export default api

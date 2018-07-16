@@ -11,58 +11,51 @@ module.exports = {
 	output: {
 		path: path.resolve(__dirname, '../dist'),
 		publicPath: '/dist/',
-		filename: '[name].[chunkhash].js'
+		filename: '[name].[chunkhash].js',
 	},
 	resolve: {
 		alias: {
-			'public': path.resolve(__dirname, '../public')
-		}
+			'public': path.resolve(__dirname, '../public'),
+		},
 	},
 	module: {
 		noParse: /es6-promise\.js$/, // avoid webpack shimming process
-		rules: [
-			{
-				test: /\.vue$/,
-				loader: 'vue-loader',
-				options: vueConfig
+		rules: [{
+			test: /\.vue$/,
+			loader: 'vue-loader',
+			options: vueConfig,
+		}, {
+			test: /\.js$/,
+			loader: 'babel-loader',
+			exclude: /node_modules/,
+		}, {
+			test: /\.(png|jpg|gif|svg)$/,
+			loader: 'url-loader',
+			options: {
+				limit: 10000,
+				name: '[name].[ext]?[hash]',
 			},
-			{
-				test: /\.js$/,
-				loader: 'babel-loader',
-				exclude: /node_modules/
-			},
-			{
-				test: /\.(png|jpg|gif|svg)$/,
-				loader: 'url-loader',
-				options: {
-					limit: 10000,
-					name: '[name].[ext]?[hash]'
-				}
-			},
-			{
-				test: /\.css$/,
-				use: isProd
-					? ExtractTextPlugin.extract({
-							use: 'css-loader?minimize',
-							fallback: 'vue-style-loader'
-						})
-					: ['vue-style-loader', 'css-loader']
-			}
-		]
+		}, {
+			test: /\.css$/,
+			use: isProd
+				? ExtractTextPlugin.extract({
+					use: 'css-loader?minimize',
+					fallback: 'vue-style-loader',
+				})
+				: ['vue-style-loader', 'css-loader'],
+		}],
 	},
 	performance: {
 		maxEntrypointSize: 300000,
-		hints: isProd ? 'warning' : false
+		hints: isProd ? 'warning' : false,
 	},
 	plugins: isProd ? [
 		new webpack.optimize.UglifyJsPlugin({
-			compress: { warnings: false }
+			compress: {warnings: false},
 		}),
 		new webpack.optimize.ModuleConcatenationPlugin(),
-		new ExtractTextPlugin({
-			filename: 'common.[chunkhash].css'
-		})
+		new ExtractTextPlugin({filename: 'common.[chunkhash].css'}),
 	] : [
-		new FriendlyErrorsPlugin()
-	]
+		new FriendlyErrorsPlugin(),
+	],
 }

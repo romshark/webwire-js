@@ -7,7 +7,9 @@ const favicon = require('serve-favicon')
 const compression = require('compression')
 const microcache = require('route-cache')
 const resolve = file => path.resolve(__dirname, file)
-const { createBundleRenderer } = require('vue-server-renderer')
+const {
+	createBundleRenderer,
+} = require('vue-server-renderer')
 global.WebSocket = require('ws')
 
 const fetch = require('node-fetch')
@@ -27,12 +29,12 @@ function createRenderer (bundle, options) {
 		// for component caching
 		cache: LRU({
 			max: 1000,
-			maxAge: 1000 * 60 * 15
+			maxAge: 1000 * 60 * 15,
 		}),
 		// this is only needed when vue-server-renderer is npm-linked
 		basedir: resolve('./dist'),
 		// recommended for performance
-		runInNewContext: false
+		runInNewContext: false,
 	}))
 }
 
@@ -52,7 +54,7 @@ if (isProd) {
 	const clientManifest = require('./dist/vue-ssr-client-manifest.json')
 	renderer = createRenderer(bundle, {
 		template,
-		clientManifest
+		clientManifest,
 	})
 } else {
 	// In development: setup the dev server with watch and hot-reload,
@@ -67,10 +69,10 @@ if (isProd) {
 }
 
 const serve = (path, cache) => express.static(resolve(path), {
-	maxAge: cache && isProd ? 1000 * 60 * 60 * 24 * 30 : 0
+	maxAge: cache && isProd ? 1000 * 60 * 60 * 24 * 30 : 0,
 })
 
-app.use(compression({ threshold: 0 }))
+app.use(compression({threshold: 0}))
 app.use(favicon('./public/logo-48.png'))
 app.use('/dist', serve('./dist', true))
 app.use('/public', serve('./public', true))
@@ -88,12 +90,12 @@ app.use(microcache.cacheSeconds(1, req => useMicroCache && req.originalUrl))
 function render (req, res) {
 	const s = Date.now()
 
-	res.setHeader("Content-Type", "text/html")
-	res.setHeader("Server", serverInfo)
+	res.setHeader('Content-Type', 'text/html')
+	res.setHeader('Server', serverInfo)
 
 	const handleError = err => {
 		if (err.url) res.redirect(err.url)
-		else if(err.code === 404) res.status(404).send('404 | Page Not Found')
+		else if (err.code === 404) res.status(404).send('404 | Page Not Found')
 		else {
 			// Render Error Page or Redirect
 			res.status(500).send('500 | Internal Server Error')
@@ -104,7 +106,7 @@ function render (req, res) {
 
 	const context = {
 		title: 'WebWire - Examples: Chat Room',
-		url: req.url
+		url: req.url,
 	}
 	renderer.renderToString(context, (err, html) => {
 		if (err) return handleError(err)

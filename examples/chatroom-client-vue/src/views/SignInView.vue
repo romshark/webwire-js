@@ -26,22 +26,20 @@
 </template>
 
 <script>
-import Api from '../api'
-
 export default {
 	data() {
 		return {
 			name: null,
 			password: null,
 			errorCode: null,
-			errorMsg: null
+			errorMsg: null,
 		}
 	},
 	methods: {
 		async signin() {
 			let err = await this.$store.dispatch('SIGNIN', {
 				name: this.name,
-				pass: this.password
+				pass: this.password,
 			})
 			if (err != null) {
 				this.errorCode = err.code
@@ -53,8 +51,8 @@ export default {
 			this.name = ''
 			this.password = ''
 			this.$router.push({name: 'MainView'})
-		}
-	}
+		},
+	},
 }
 </script>
 

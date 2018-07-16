@@ -1,5 +1,3 @@
-import Vue from 'vue'
-
 export default {
 	SET_API_CONNECTION_STATUS(state, connectionStatus) {
 		state.api.connected = connectionStatus
@@ -11,7 +9,7 @@ export default {
 		state.messages.push({
 			author: message.user,
 			msg: message.msg,
-			time: new Date()
+			time: new Date(),
 		})
-	}
+	},
 }

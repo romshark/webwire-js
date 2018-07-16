@@ -21,13 +21,15 @@ module.exports = function setupDevServer (app, templatePath, cb) {
 	let clientManifest
 
 	let ready
-	const readyPromise = new Promise(r => { ready = r })
+	const readyPromise = new Promise(resolve => {
+		ready = resolve
+	})
 	const update = () => {
 		if (bundle && clientManifest) {
 			ready()
 			cb(bundle, {
 				template,
-				clientManifest
+				clientManifest,
 			})
 		}
 	}
@@ -43,7 +45,7 @@ module.exports = function setupDevServer (app, templatePath, cb) {
 	// modify client config to work with hot middleware
 	clientConfig.entry.app = [
 		'webpack-hot-middleware/client',
-		clientConfig.entry.app
+		clientConfig.entry.app,
 	]
 	clientConfig.output.filename = '[name].js'
 	clientConfig.plugins.push(
@@ -55,7 +57,7 @@ module.exports = function setupDevServer (app, templatePath, cb) {
 	const clientCompiler = webpack(clientConfig)
 	const devMiddleware = require('webpack-dev-middleware')(clientCompiler, {
 		publicPath: clientConfig.output.publicPath,
-		noInfo: true
+		noInfo: true,
 	})
 	app.use(devMiddleware)
 	clientCompiler.plugin('done', stats => {

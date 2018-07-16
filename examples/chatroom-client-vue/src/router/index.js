@@ -10,15 +10,15 @@ export function createRouter () {
 	return new Router({
 		mode: 'history',
 		fallback: false,
-		scrollBehavior: () => ({ y: 0 }),
+		scrollBehavior: () => ({y: 0}),
 		routes: [{
 			path: '/',
 			name: 'MainView',
-			component: MainView
+			component: MainView,
 		}, {
 			path: '/signin',
 			name: 'SignInView',
-			component: SignInView
-		}]
+			component: SignInView,
+		}],
 	})
 }

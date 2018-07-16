@@ -48,7 +48,7 @@ export default {
 	data() {
 		return {
 			newMessage: '',
-			sendError: null
+			sendError: null,
 		}
 	},
 	methods: {
@@ -58,11 +58,14 @@ export default {
 		},
 		async sendMessage() {
 			if (this.newMessage.length < 1) return
-			let err = await this.$store.dispatch('PUSH_MESSAGE', this.newMessage)
+			let err = await this.$store.dispatch(
+				'PUSH_MESSAGE',
+				this.newMessage,
+			)
 			if (err != null) this.sendError = err
 			this.newMessage = ''
-		}
-	}
+		},
+	},
 }
 </script>
 
