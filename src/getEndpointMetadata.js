@@ -41,7 +41,7 @@ function onBrowser(host) {
 	return new Promise((resolve, reject) => {
 		try {
 			const req = new XMLHttpRequest()
-			req.open('WEBWIRE', `http://${host}`, true)
+			req.open('WEBWIRE', host, true)
 			req.onload = function() {
 				if (req.readyState !== 4) {
 					const disconnErr = new Error(
