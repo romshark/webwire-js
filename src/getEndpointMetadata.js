@@ -1,10 +1,9 @@
-function onNode(host, port) {
+function onNode(host) {
 	const http = require('http')
 	return new Promise((resolve, reject) => {
 		try {
 			const req = http.request({
 				host,
-				port,
 				method: 'WEBWIRE',
 				json: true,
 			}, (res) => {
@@ -38,11 +37,11 @@ function onNode(host, port) {
 	})
 }
 
-function onBrowser(host, port) {
+function onBrowser(host) {
 	return new Promise((resolve, reject) => {
 		try {
 			const req = new XMLHttpRequest()
-			req.open('WEBWIRE', `http://${host}:${port}`, true)
+			req.open('WEBWIRE', `http://${host}`, true)
 			req.onload = function() {
 				if (req.readyState !== 4) {
 					const disconnErr = new Error(

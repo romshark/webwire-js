@@ -498,7 +498,7 @@ function parseMsg(message) {
 		result = {err: new Error(`Unsupported message type: ${msgType}`)}
 	}
 
-	if (result.err !== null) return {err: result.err}
+	if (result.err != null) return {err: result.err}
 	else {
 		return {
 			type: msgType,

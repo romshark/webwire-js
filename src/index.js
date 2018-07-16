@@ -61,16 +61,15 @@ const ClientStatus = {
 	Connecting: 3,
 }
 
-export default function WebWireClient(_host, _port, options) {
+export default function WebWireClient(_host, options) {
 	if (typeof _host !== 'string' || _host.length < 1) {
 		throw new Error(`Invalid WebWire server host`)
 	}
-	if (_port == null) _port = 80
 
 	if (options == null) options = {}
 
 	// Load client state for this server address if any
-	const locStorKey = `webwire:${_host}:${_port}`
+	const locStorKey = `webwire:${_host}`
 
 	let state
 
@@ -208,22 +207,27 @@ export default function WebWireClient(_host, _port, options) {
 	async function handleMessage(msgObj) {
 		if (msgObj.size < 1) return
 
-		const parsed = await Parse(msgObj)
+		const {
+			type,
+			msg,
+			payloadEncoding,
+			err,
+		} = await Parse(msgObj)
 
-		if (parsed.err != null) {
-			console.error(`WebWire: failed parsing message: ${parsed.err}`)
+		if (err != null) {
+			console.error(`WebWire: failed parsing message: ${err}`)
 			return
 		}
 
 		// Handle message
-		switch (parsed.type) {
+		switch (type) {
 		case MessageType.ReplyBinary:
 		case MessageType.ReplyUtf8:
 		case MessageType.ReplyUtf16:
 			handleReply({
-				id: parsed.msg.id,
-				encoding: parsed.payloadEncoding,
-				payload: parsed.msg.payload,
+				id: msg.id,
+				encoding: payloadEncoding,
+				payload: msg.payload,
 			})
 			break
 		case MessageType.ReplyShutdown:
@@ -232,27 +236,27 @@ export default function WebWireClient(_host, _port, options) {
 		case MessageType.MaxSessConnsReached:
 		case MessageType.ErrorReply:
 			handleFailure({
-				id: parsed.msg.id,
-				error: parsed.msg.reqError,
+				id: msg.id,
+				error: msg.reqError,
 			})
 			break
 		case MessageType.SignalBinary:
 		case MessageType.SignalUtf8:
 		case MessageType.SignalUtf16:
 			_onSignal({
-				name: parsed.msg.name,
-				encoding: parsed.payloadEncoding,
-				payload: parsed.msg.payload,
+				name: msg.name,
+				encoding: payloadEncoding,
+				payload: msg.payload,
 			})
 			break
 		case MessageType.SessionCreated:
-			handleSessionCreated(parsed.msg.session)
+			handleSessionCreated(msg.session)
 			break
 		case MessageType.SessionClosed:
 			handleSessionClosed()
 			break
 		default:
-			console.warn(`WebWire: strange message type received:`, parsed.type)
+			console.warn(`WebWire: strange message type received:`, type)
 			break
 		}
 	}
@@ -262,7 +266,7 @@ export default function WebWireClient(_host, _port, options) {
 	async function verifyProtocolVersion() {
 		// Initialize HTTP client
 		try {
-			const {metadata, err} = await getEndpointMetadata(_host, _port)
+			const {metadata, err} = await getEndpointMetadata(_host)
 			if (err != null) return err
 			const protoVersion = metadata['protocol-version']
 			if (protoVersion !== supportedProtocolVersion) {
@@ -460,7 +464,7 @@ export default function WebWireClient(_host, _port, options) {
 					return resolve(disconnErr)
 				}
 
-				_conn = new Socket(`ws://${_host}:${_port}/`)
+				_conn = new Socket(`ws://${_host}/`)
 				_conn.onOpen(async () => {
 					_connecting = null
 					_status = ClientStatus.Connected

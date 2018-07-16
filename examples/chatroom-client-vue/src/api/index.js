@@ -1,7 +1,7 @@
 import WebWireClient from '../../../../src'
 
-function init(host, port, handlers) {
-	api.client = new WebWireClient(host, port, {handlers})
+function init(host, handlers) {
+	api.client = new WebWireClient(host, {handlers})
 }
 
 const api = {

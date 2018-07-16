@@ -5,8 +5,7 @@ export default {
 	// Returns an error if anything goes wrong
 	async CONNECT({commit, state}) {
 		Api.init(
-			state.api.host,
-			state.api.port,
+			process.env.API_HOST || '127.0.0.1:9090',
 			{
 				// onSignal
 				onSignal: signal => {
