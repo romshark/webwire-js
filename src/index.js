@@ -7,7 +7,11 @@ import SignalMessage from './signalMessage'
 import SessionKey from './sessionKey'
 import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
-import getEndpointMetadata from './getEndpointMetadata'
+import {
+	onNode as getEndpointMetadataNode,
+	onBrowser as getEndpointMetadataBrowser,
+} from './getEndpointMetadata'
+import parseEndpointAddress from './parseEndpointAddress'
 
 const supportedProtocolVersion = '1.4'
 
@@ -61,15 +65,43 @@ const ClientStatus = {
 	Connecting: 3,
 }
 
-export default function WebWireClient(_host, options) {
-	if (typeof _host !== 'string' || _host.length < 1) {
-		throw new Error(`Invalid WebWire server host`)
-	}
+function localStorageStateKey(hostname, port, endpoint) {
+	const key = `${hostname}:${port}`
+	if (endpoint) return `${key}${endpoint}`
+	return key
+}
+
+function websocketEndpointUri(protocol, hostname, port, path) {
+	// Determine websocket schema based on the endpoint protocol
+	const wsSchema = protocol === 'https' ? 'wss' : 'ws'
+	const base = `${wsSchema}://${hostname}:${port}`
+	if (path) return `${base}${path}`
+	return base
+}
+
+export default function WebWireClient(endpointAddress, options) {
+	// Parse endpoint address
+	const {
+		protocol: _protocol,
+		hostname: _hostname,
+		port: _port,
+		path: _endpointPath,
+		err,
+	} = parseEndpointAddress(endpointAddress)
+	if (err) throw err
+
+	// Determine the websocket endpoint URI
+	const _websocketEndpointUri = websocketEndpointUri(
+		_protocol,
+		_hostname,
+		_port,
+		_endpointPath,
+	)
 
 	if (options == null) options = {}
 
 	// Load client state for this server address if any
-	const locStorKey = `webwire:${_host}`
+	const locStorKey = localStorageStateKey(_hostname, _port, _endpointPath)
 
 	let state
 
@@ -266,8 +298,15 @@ export default function WebWireClient(_host, options) {
 	async function verifyProtocolVersion() {
 		// Initialize HTTP client
 		try {
-			const {metadata, err} = await getEndpointMetadata(_host)
-			if (err != null) return err
+			const getEndpointMetadata = process.browser
+				? getEndpointMetadataBrowser : getEndpointMetadataNode
+			const {metadata, err} = await getEndpointMetadata(
+				_protocol,
+				_hostname,
+				_port,
+				_endpointPath,
+			)
+			if (err) return err
 			const protoVersion = metadata['protocol-version']
 			if (protoVersion !== supportedProtocolVersion) {
 				const err = new Error(
@@ -464,7 +503,7 @@ export default function WebWireClient(_host, options) {
 					return resolve(disconnErr)
 				}
 
-				_conn = new Socket(`ws://${_host}/`)
+				_conn = new Socket(_websocketEndpointUri)
 				_conn.onOpen(async () => {
 					_connecting = null
 					_status = ClientStatus.Connected

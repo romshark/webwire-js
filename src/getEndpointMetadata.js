@@ -1,10 +1,13 @@
-function onNode(host) {
+export function onNode(protocol, hostname, port, path) {
 	const http = require('http')
 	return new Promise((resolve, reject) => {
 		try {
 			const req = http.request({
-				host,
 				method: 'WEBWIRE',
+				protocol,
+				hostname,
+				port,
+				path,
 				json: true,
 			}, (res) => {
 				if (res.statusCode !== 200) {
@@ -37,11 +40,18 @@ function onNode(host) {
 	})
 }
 
-function onBrowser(host) {
+export function onBrowser(protocol, hostname, port, path) {
 	return new Promise((resolve, reject) => {
 		try {
+			let endpointUri = `${protocol}://${hostname}:${port}`
+			if (path) endpointUri = `${endpointUri}${path}`
+
 			const req = new XMLHttpRequest()
-			req.open('WEBWIRE', host, true)
+			req.open(
+				'WEBWIRE',
+				endpointUri,
+				true,
+			)
 			req.onload = function() {
 				if (req.readyState !== 4) {
 					const disconnErr = new Error(
@@ -71,6 +81,3 @@ function onBrowser(host) {
 		}
 	})
 }
-
-if (process.browser) module.exports = onBrowser
-else module.exports = onNode
