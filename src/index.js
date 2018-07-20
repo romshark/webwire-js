@@ -366,18 +366,14 @@ export default function WebWireClient(endpointAddress, options) {
 						const err = await connect()
 						if (err == null) {
 							resolve()
-							resolve()
 							_reconnecting = null
-							return
 						} else {
 							if (err.errType === 'disconnected') {
 								await sleep(_reconnInterval)
 								continue
 							} else {
 								resolve({err})
-								resolve({err})
 								_reconnecting = null
-								return
 							}
 						}
 					}
