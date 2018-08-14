@@ -12,8 +12,10 @@
 	<a href="https://opensource.org/licenses/MIT">
 		<img src="https://img.shields.io/badge/License-MIT-green.svg" alt="Licence: MIT">
 	</a>
-	<a href="https://www.paypal.me/romshark">
-		<img src="https://img.shields.io/badge/Donate-PayPal-green.svg" alt="Donate">
+</p>
+<p align="center">
+	<a href="https://opencollective.com/webwire">
+		<img src="https://opencollective.com/webwire/tiers/backer.svg?avatarHeight=64" alt="OpenCollective">
 	</a>
 </p>
 <br>
