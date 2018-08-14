@@ -1,7 +1,24 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/romshark)
+<!-- HEADER -->
+<h1 align="center">
+	<br>
+	<a href="https://github.com/qbeon/webwire-go"><img src="https://cdn.rawgit.com/qbeon/webwire-go/c7c2c74e/docs/img/webwire_logo.svg" alt="WebWire" width="256"></a>
+	<br>
+	<br>
+	<a href="https://github.com/qbeon/webwire-go">WebWire</a> for JavaScript
+	<br>
+	<sub>An asynchronous duplex messaging library</sub>
+</h1>
+<p align="center">
+	<a href="https://opensource.org/licenses/MIT">
+		<img src="https://img.shields.io/badge/License-MIT-green.svg" alt="Licence: MIT">
+	</a>
+	<a href="https://www.paypal.me/romshark">
+		<img src="https://img.shields.io/badge/Donate-PayPal-green.svg" alt="Donate">
+	</a>
+</p>
+<br>
 
-# WebWire for JavaScript
+<!-- CONTENT -->
 [WebWire](https://github.com/qbeon/webwire-go) is a high-level asynchronous duplex messaging library built on top of [WebSockets](https://developer.mozilla.org/de/docs/WebSockets) and an open source binary message protocol with builtin sessions and support for UTF8 and UTF16 encoding.
 The [webwire-js](https://github.com/qbeon/webwire-js) library provides a client implementation for JavaScript environments.
 
