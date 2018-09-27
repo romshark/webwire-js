@@ -1,7 +1,10 @@
 const path = require('path')
 const webpack = require('webpack')
 
+const isProd = process.env.NODE_ENV === 'production'
+console.log(isProd)
 module.exports = {
+  mode: isProd ? 'production' : 'development',
   entry: './src/index.js',
   output: {
     path: path.resolve(__dirname, './lib'),
@@ -21,19 +24,15 @@ module.exports = {
           options: {
             presets: [
               ["@babel/preset-env", {
-                "modules": false,
                 "targets": {
                   "browsers": ["> 1%", "last 2 versions", "not ie <= 11"]
                 }
-              }],
-              "@babel/preset-stage-2"
+              }]
             ],
             plugins: [
               ["@babel/plugin-transform-runtime", {
                 "helpers": false,
-                "polyfill": false,
                 "regenerator": true,
-                "moduleName": "@babel/runtime"
               }]
             ],
             ignore: [
