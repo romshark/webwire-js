@@ -367,6 +367,7 @@ export default function WebWireClient(endpointAddress, options) {
 						if (err == null) {
 							resolve()
 							_reconnecting = null
+							return
 						} else {
 							if (err.errType === 'disconnected') {
 								await sleep(_reconnInterval)
@@ -374,6 +375,7 @@ export default function WebWireClient(endpointAddress, options) {
 							} else {
 								resolve({err})
 								_reconnecting = null
+								return
 							}
 						}
 					}
