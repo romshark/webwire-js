@@ -361,6 +361,11 @@ export default function WebWireClient(endpointAddress, options) {
 							err.errType = 'timeout'
 							resolve(err)
 						}, timeoutDur)
+						return
+						// await sleep(timeoutDur)
+						// const err = new Error('Timeout')
+						// err.errType = 'timeout' 
+						// resolve(err)
 					}
 					while (1) {
 						const err = await connect()

@@ -2,7 +2,7 @@ const path = require('path')
 const webpack = require('webpack')
 
 const isProd = process.env.NODE_ENV === 'production'
-console.log(isProd)
+
 module.exports = {
   mode: isProd ? 'production' : 'development',
   entry: './src/index.js',
@@ -12,6 +12,9 @@ module.exports = {
     library: 'webwire-js',
     libraryTarget: 'umd',
     globalObject: 'this'
+  },
+  externals: {
+    http: 'http'
   },
   module: {
     rules: [
