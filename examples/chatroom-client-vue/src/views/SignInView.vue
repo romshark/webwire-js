@@ -15,7 +15,11 @@
 		placeholder="gandalf1234"
 		v-model="password"/>
 
-		<p v-show="errorCode"><b>Authentication Error ({{errorCode}})</b>: {{errorMsg}}</p>
+		<p
+		class="error-msg"
+		v-show="errorCode">
+			<b>Authentication Error ({{errorCode}})</b>: {{errorMsg}}
+		</p>
 
 		<button
 		:disabled="name == '' || password == ''"
@@ -64,11 +68,14 @@ export default {
 	align-items: center
 	width: 100%
 	height: 100%
+	.error-msg
+		color: rgba(255, 82, 82, 1)
 	.form
 		width: 16rem
 		height: 16rem
 	.title
 		margin: 0px
+		color: #555
 	.name, .password, .signin-button
 		box-sizing: border-box
 		margin-top: 1rem
@@ -78,6 +85,7 @@ export default {
 		border: 1px solid #DDD
 		border-radius: .2rem
 		width: 100%
+		color: white
 	.name, .password
 		&::-webkit-input-placeholder
 			color: #BBB

@@ -8,7 +8,11 @@
 	</div>
 
 	<div class="header">
-		<h1 class="page-title">WebWire Vue ChatRoom</h1>
+		<h1 class="page-title">
+			<a href="https://github.com/qbeon/webwire-js">
+				webwire-js example
+			</a>
+		</h1>
 		<router-link
 		:to="{name: 'SignInView'}"
 		class="signin-button"
@@ -101,31 +105,34 @@ export default {
 		& .signin-button, & .signout-button
 			padding: .5rem
 			font-size: 1rem
-			border: 1px solid #DDD
+			border: 1px solid #333
 			border-radius: .25rem
 			background: none
+			color: #888
 		& .page-title
 			margin: 0rem
 			font-size: 1rem
+			color: #888
 	& .message-list
 		list-style-type: none
 		padding: 0px
 		margin-top: 1rem
 		margin-bottom: 1rem
 		& .message
-			background: white
+			background: #101010
 			margin-top: 1rem
 			border-radius: 1rem
 			padding: .8rem
-			box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)
+			color: white
 		& .message-header
 			display: flex
 			justify-content: space-between
 			margin-bottom: .2rem
 			& .message-author
 				font-weight: bold
+				color: #888
 			& .message-time
-				color: #AAA
+				color: #555
 				font-size: .8rem
 
 	& .message-input
@@ -133,8 +140,9 @@ export default {
 		bottom: 0px
 		width: 100%
 		background: none
-		border: 1px solid #DDD
+		border: 1px solid #333
 		border-radius: .2rem
 		padding: .5rem
 		box-sizing: border-box
+		color: white
 </style>

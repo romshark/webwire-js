@@ -28,6 +28,7 @@ body
 #app
 	height: 100%
 	width: 100%
+	background: black
 
 h1
 	font-size: 2rem
@@ -48,6 +49,6 @@ body
 	color: #34495e
 
 a
-	color: #34495e
+	color: inherit
 	text-decoration: none
 </style>
