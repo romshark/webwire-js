@@ -51,6 +51,11 @@ export const Type = {
 	// to request session restoration
 	RestoreSession: 32,
 
+	// Heartbeat is sent by the client to acknowledge the server about the
+	// activity of the connection to prevent it from shutting the connection
+	// down on read timeout
+	Heartbeat: 33,
+
 	// SIGNAL
 	// Signals are sent by both the client and the server
 	// and represents a one-way signal message that doesn't require a reply

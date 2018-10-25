@@ -13,7 +13,7 @@ import {
 } from './getEndpointMetadata'
 import parseEndpointAddress from './parseEndpointAddress'
 
-const supportedProtocolVersion = '1.4'
+const supportedProtocolVersion = '1.5'
 
 function getCallbacks(opts) {
 	let onSignal = function() {}
@@ -123,6 +123,8 @@ export default function WebWireClient(endpointAddress, options) {
 	let _status = ClientStatus.Disconnected
 	let _reconnecting = null
 	let _connecting = null
+	let _heartbeatTimeout = null
+	let _readTimeout = 60000
 
 	const {
 		onSignal: _onSignal,
@@ -314,8 +316,9 @@ export default function WebWireClient(endpointAddress, options) {
 						`(supported: ${supportedProtocolVersion})`
 				)
 				err.errType = 'incomp'
-				return err
+				return {err: err}
 			}
+			return {res: metadata['read-timeout']}
 		} catch (excep) {
 			return excep
 		}
@@ -447,6 +450,9 @@ export default function WebWireClient(endpointAddress, options) {
 
 				// Send request
 				_conn.send(reqMsg.bytes)
+
+				// Reset heartbeat
+				startHeartbeat()
 			} catch (excep) {
 				reject(excep)
 			}
@@ -479,6 +485,28 @@ export default function WebWireClient(endpointAddress, options) {
 		}
 	}
 
+	function startHeartbeat() {
+		clearInterval(_heartbeatTimeout)
+		_heartbeatTimeout = setInterval(() => {
+			const _buf = new ArrayBuffer(1)
+			const msgBuf = new Uint8Array(_buf, 0, 1)
+			msgBuf[0] = MessageType.Heartbeat
+			try {
+				_conn.send(msgBuf)
+			} catch(excep) {
+				console.error(
+					'couldn\'t send heartbeat message: ',
+					err,
+				)
+			}
+		}, _readTimeout)
+	}
+
+	function stopHeartbeat() {
+		clearInterval(_heartbeatTimeout)
+		_heartbeatTimeout = null
+	}
+
 	// Connects the client to the configured server and
 	// returns an error in case of a connection failure
 	function connect() {
@@ -493,7 +521,11 @@ export default function WebWireClient(endpointAddress, options) {
 		_connecting = new Promise(async (resolve, reject) => {
 			_status = ClientStatus.Connecting
 			try {
-				const err = await verifyProtocolVersion()
+				const {res: readTimeout, err} = await verifyProtocolVersion()
+
+				// From seconds to milliseconds, 3/4 before timeout
+				_readTimeout = readTimeout * 1000 - (readTimeout * 1000 / 4)
+
 				if (err != null) {
 					if (err.errType === 'incomp') throw err
 					const disconnErr = new Error('disconnected')
@@ -506,6 +538,8 @@ export default function WebWireClient(endpointAddress, options) {
 				_conn.onOpen(async () => {
 					_connecting = null
 					_status = ClientStatus.Connected
+
+					startHeartbeat()
 
 					if (_session == null) {
 						_onConnected()
@@ -540,6 +574,8 @@ export default function WebWireClient(endpointAddress, options) {
 							code,
 						)
 					}
+
+					stopHeartbeat()
 					_onDisconnected()
 
 					// Auto-reconnect on connection loss
@@ -564,6 +600,9 @@ export default function WebWireClient(endpointAddress, options) {
 		const err = await connect()
 		if (err != null) return err
 		_conn.send(sigMsg.bytes)
+
+		// Reset heartbeat
+		startHeartbeat()
 	}
 
 	// Tries to restore the previously opened session.
