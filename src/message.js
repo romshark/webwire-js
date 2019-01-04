@@ -1,4 +1,8 @@
 export const Type = {
+	// AcceptConf is a connection approval push-message sent only by the
+	// server right after the handshake and includes the server configurations
+	AcceptConf: 23,
+
 	// ErrorReply is sent by the server
 	// and represents an error-reply to a previously sent request
 	ErrorReply: 0,
@@ -97,6 +101,10 @@ export const Type = {
 }
 
 export const MinLen = {
+	// AcceptConf represents the minimum length
+	// of an endpoint metadata message.
+	AcceptConf: 11,
+
 	// Signal represents the minimum
 	// binary/UTF8 encoded signal message length
 	Signal: 3,

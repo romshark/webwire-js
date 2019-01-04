@@ -7,13 +7,8 @@ import SignalMessage from './signalMessage'
 import SessionKey from './sessionKey'
 import Parse from './parse'
 import NamelessRequestMessage from './namelessReqMsg'
-import {
-	onNode as getEndpointMetadataNode,
-	onBrowser as getEndpointMetadataBrowser,
-} from './getEndpointMetadata'
-import parseEndpointAddress from './parseEndpointAddress'
-
-const supportedProtocolVersion = '1.5'
+import ParseEndpointAddress from './parseEndpointAddress'
+import VerifyProtocolVersion from './verifyProtocolVersion'
 
 function getCallbacks(opts) {
 	let onSignal = function() {}
@@ -87,7 +82,7 @@ export default function WebWireClient(endpointAddress, options) {
 		port: _port,
 		path: _endpointPath,
 		err,
-	} = parseEndpointAddress(endpointAddress)
+	} = ParseEndpointAddress(endpointAddress)
 	if (err) throw err
 
 	// Determine the websocket endpoint URI
@@ -123,8 +118,10 @@ export default function WebWireClient(endpointAddress, options) {
 	let _status = ClientStatus.Disconnected
 	let _reconnecting = null
 	let _connecting = null
-	let _heartbeatTimeout = null
+	let _heartbeatIntervalToken = null
+	let _messageBufferSize = null
 	let _readTimeout = 60000
+	const _dialTimeout = options.dialTimeout || 60000
 
 	const {
 		onSignal: _onSignal,
@@ -181,10 +178,10 @@ export default function WebWireClient(endpointAddress, options) {
 	// Autoconnect
 	tryAutoconnect(0)
 		.then(err => {
-			if (err != null) console.error(`WebWire: autoconnect failed:`, err)
+			if (err != null) console.error(`webwire: autoconnect failed:`, err)
 		})
 		.catch(excep => {
-			console.warn(`WebWire: autoconnect failed:`, excep)
+			console.warn(`webwire: autoconnect failed:`, excep)
 		})
 
 	function handleSessionCreated(session) {
@@ -249,7 +246,7 @@ export default function WebWireClient(endpointAddress, options) {
 		} = await Parse(msgObj)
 
 		if (err != null) {
-			console.error(`WebWire: failed parsing message: ${err}`)
+			console.error(`webwire: failed parsing message: ${err}`)
 			return
 		}
 
@@ -290,37 +287,8 @@ export default function WebWireClient(endpointAddress, options) {
 			handleSessionClosed()
 			break
 		default:
-			console.warn(`WebWire: strange message type received:`, type)
+			console.warn(`webwire: strange message type received:`, type)
 			break
-		}
-	}
-
-	// verifyProtocolVersion requests the endpoint metadata
-	// to verify the server is running a supported protocol version
-	async function verifyProtocolVersion() {
-		// Initialize HTTP client
-		try {
-			const getEndpointMetadata = process.browser
-				? getEndpointMetadataBrowser : getEndpointMetadataNode
-			const {metadata, err} = await getEndpointMetadata(
-				_protocol,
-				_hostname,
-				_port,
-				_endpointPath,
-			)
-			if (err) return err
-			const protoVersion = metadata['protocol-version']
-			if (protoVersion !== supportedProtocolVersion) {
-				const err = new Error(
-					`Unsupported protocol version: ${protoVersion} ` +
-						`(supported: ${supportedProtocolVersion})`
-				)
-				err.errType = 'incomp'
-				return {err: err}
-			}
-			return {res: metadata['read-timeout']}
-		} catch (excep) {
-			return excep
 		}
 	}
 
@@ -402,6 +370,8 @@ export default function WebWireClient(endpointAddress, options) {
 		encoding,
 		timeoutDuration,
 	) {
+		//TODO: ensure the message won't overflow the message buffer size
+
 		// Connect before attempting to send the request
 		return new Promise(async (resolve, reject) => {
 			try {
@@ -470,7 +440,7 @@ export default function WebWireClient(endpointAddress, options) {
 			// even if session restoration failed,
 			// because we only care about the connection establishment
 			// in this method
-			console.warn(`WebWire client: couldn't restore session:`, reqErr)
+			console.warn(`webwire client: couldn't restore session:`, reqErr)
 
 			// Reset the session
 			_session = null
@@ -486,8 +456,8 @@ export default function WebWireClient(endpointAddress, options) {
 	}
 
 	function startHeartbeat() {
-		clearInterval(_heartbeatTimeout)
-		_heartbeatTimeout = setInterval(() => {
+		clearInterval(_heartbeatIntervalToken)
+		_heartbeatIntervalToken = setInterval(() => {
 			const _buf = new ArrayBuffer(1)
 			const msgBuf = new Uint8Array(_buf, 0, 1)
 			msgBuf[0] = MessageType.Heartbeat
@@ -503,8 +473,8 @@ export default function WebWireClient(endpointAddress, options) {
 	}
 
 	function stopHeartbeat() {
-		clearInterval(_heartbeatTimeout)
-		_heartbeatTimeout = null
+		clearInterval(_heartbeatIntervalToken)
+		_heartbeatIntervalToken = null
 	}
 
 	// Connects the client to the configured server and
@@ -512,65 +482,106 @@ export default function WebWireClient(endpointAddress, options) {
 	function connect() {
 		if (_status === ClientStatus.Connected) return Promise.resolve()
 		else if (_connecting != null) {
+			// Client is already trying to connect, await connection
 			return new Promise((resolve, reject) => {
 				_connecting
 					.then(resolve)
 					.catch(reject)
 			})
 		}
+		// Try to connect
 		_connecting = new Promise(async (resolve, reject) => {
 			_status = ClientStatus.Connecting
 			try {
-				const {res: readTimeout, err} = await verifyProtocolVersion()
-
-				// From seconds to milliseconds, 3/4 before timeout
-				_readTimeout = readTimeout * 1000 - (readTimeout * 1000 / 4)
-
-				if (err != null) {
-					if (err.errType === 'incomp') throw err
-					const disconnErr = new Error('disconnected')
-					disconnErr.errType = 'disconnected'
-					_connecting = null
-					return resolve(disconnErr)
-				}
+				const dialTimeoutToken = setTimeout(() => {
+					// If the dialing didn't yet succeed then fail the
+					// connection attempt with a dialTimeout error, otherwise do
+					// nothing
+					if (_status != ClientStatus.Connected) {
+						_connecting = null
+						console.error('webwire dial timeout error:', err)
+						const dialTimeoutErr = new Error(`dial timeout error`)
+						dialTimeoutErr.errType = 'dialTimeout'
+						resolve(dialTimeoutErr)
+					}
+				}, _dialTimeout)
 
 				_conn = new Socket(_websocketEndpointUri)
-				_conn.onOpen(async () => {
+				_conn.onError(err => {
+					clearTimeout(dialTimeoutToken)
+					_connecting = null
+					console.error('webwire client error:', err)
+					const connErr = new Error(`WebSocket error: ${err}`)
+					connErr.errType = 'disconnected'
+					resolve(connErr)
+				})
+				_conn.onMessage(async msg => {
+					// Stop the dialing timeout because a message was received
+					// assuming that it's the accept-conf message
+					clearTimeout(dialTimeoutToken)
+
+					const acceptConfMsg = await Parse(msg)
+
+					// Ensure the received message is an accept-conf one
+					if (acceptConfMsg.type != MessageType.AcceptConf) {
+						_connecting = null
+						console.error('webwire protocol error:', err)
+						const protocolErr = new Error(
+							`webwire protocol error: ` +
+								`expected the server to send an accept-conf ` +
+								` message, got: ${acceptConfMsg.type}`
+						)
+						protocolErr.errType = 'protocolError'
+						return resolve(protocolErr)
+					}
+
+					// Verify protocol version compatibility
+					const protoVersionErr = !VerifyProtocolVersion(
+						acceptConfMsg.majorProtocolVersion,
+						acceptConfMsg.minorProtocolVersion,
+					)
+					if (protoVersionErr) return resolve(protoVersionErr)
+
+					// Set the message buffer size
+					_messageBufferSize = acceptConfMsg.messageBufferSize
+
+					// Determine server's read timeout (send heartbeat 25%
+					// before actual timeout)
+					_readTimeout = acceptConfMsg.readTimeout - (
+						acceptConfMsg.readTimeout / 4
+					)
+
+					// Connected successfully, reset the message handler, update
+					// the status and start heartbeating
+					_conn.onMessage(msg => handleMessage(msg))
 					_connecting = null
 					_status = ClientStatus.Connected
 
 					startHeartbeat()
 
+					// Check whether the session needs to be restored
 					if (_session == null) {
 						_onConnected()
 						return resolve()
 					}
 
-					// Try to automatically restore previous session
+					// Try to automatically restore the previous session
 					const err = await tryRestoreSession(_session.key.bytes)
 					if (err != null) {
 						console.warn(
-							`WebWire: couldn't restore session on reconnection`,
+							`webwire: couldn't restore session on reconnection`,
 							err,
 						)
 					}
 					_onConnected()
 					resolve()
 				})
-				_conn.onError(err => {
-					_connecting = null
-					console.error('WebWire client error:', err)
-					const connErr = new Error(`WebSocket error: ${err}`)
-					connErr.errType = 'disconnected'
-					resolve(connErr)
-				})
-				_conn.onMessage(msg => handleMessage(msg))
 				_conn.onClose(async code => {
 					_status = ClientStatus.Disconnected
 					// See http://tools.ietf.org/html/rfc6455#section-7.4.1
 					if (code !== 1000 && code !== 1001) {
 						console.warn(
-							'WebWire: abnormal closure error: code:',
+							'webwire: abnormal closure error code:',
 							code,
 						)
 					}
@@ -581,7 +592,7 @@ export default function WebWireClient(endpointAddress, options) {
 					// Auto-reconnect on connection loss
 					const err = await tryAutoconnect(0)
 					if (err != null) {
-						console.error('WebWire: autoconnect failed:', err)
+						console.error('webwire: autoconnect failed:', err)
 					}
 				})
 			} catch (excep) {
@@ -594,6 +605,8 @@ export default function WebWireClient(endpointAddress, options) {
 	// Sends a signal containing the given payload to the server.
 	// Automatically connects to the server if no connection has yet been established
 	async function signal(name, payload, encoding) {
+		//TODO: ensure the message won't overflow the message buffer size
+
 		const sigMsg = new SignalMessage(name, payload, encoding)
 
 		// Connect before attempting to send the signal
@@ -626,7 +639,7 @@ export default function WebWireClient(endpointAddress, options) {
 		const err = await tryRestoreSession(sessionKey.bytes)
 		if (err != null) {
 			console.warn(
-				`WebWire: couldn't restore session by key
+				`webwire: couldn't restore session by key
 					(${sessionKey.string}) : ${err}`
 			)
 		}

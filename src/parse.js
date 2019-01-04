@@ -425,72 +425,96 @@ function parseReplyUtf16(message) {
 	}
 }
 
-function parseMsg(message) {
-	if (message.length < 1) {
+function parseAcceptConf(buffer, view8) {
+	if (view8.length < MinMsgLen.AcceptConf) {
+		return {err: new Error(`Invalid accept-conf message, too short` +
+			`(${view8.length} / ${MinMsgLen.ReplyUtf16})`
+		)}
+	}
+
+	const view = new DataView(buffer)
+
+	return {
+		majorProtocolVersion: view8[1],
+		minorProtocolVersion: view8[2],
+		readTimeout: view.getUint32(3, true),
+		messageBufferSize: view.getUint32(7, true),
+		subProtocolName: view8.length > MinMsgLen.AcceptConf ?
+			utf8ArrayToStr(view8.subarray(11)) : null
+	}
+}
+
+function parseMsg(buffer, view8) {
+	if (view8.length < 1) {
 		return {err: new Error(`Invalid message, too short`)}
 	}
 	let payloadEncoding = 'binary'
 
 	// Read type
-	const msgType = message[0]
+	const msgType = view8[0]
 	let result
 
 	switch (msgType) {
+	// Accept-conf
+	case MessageType.AcceptConf:
+		result = parseAcceptConf(buffer, view8)
+		break
+
 	// Special notifications
 	case MessageType.SessionCreated:
-		result = parseSessionCreated(message)
+		result = parseSessionCreated(view8)
 		break
 	case MessageType.SessionClosed:
-		result = parseSessionClosed(message)
+		result = parseSessionClosed(view8)
 		break
 
 	// Signals
 	case MessageType.SignalBinary:
-		result = parseSignalBinary(message)
+		result = parseSignalBinary(view8)
 		break
 	case MessageType.SignalUtf8:
 		payloadEncoding = 'utf8'
-		result = parseSignalUtf8(message)
+		result = parseSignalUtf8(view8)
 		break
 	case MessageType.SignalUtf16:
 		payloadEncoding = 'utf16'
-		result = parseSignalUtf16(message)
+		result = parseSignalUtf16(view8)
 		break
 
 	// Special request replies
 	case MessageType.ReplyShutdown:
-		result = parseReplyShutdown(message)
+		result = parseReplyShutdown(view8)
 		break
 	case MessageType.ReplyInternalError:
-		result = parseInternalError(message)
+		result = parseInternalError(view8)
 		break
 	case MessageType.SessionNotFound:
-		result = parseSessionNotFound(message)
+		result = parseSessionNotFound(view8)
 		break
 	case MessageType.MaxSessConnsReached:
-		result = parseMaxSessConnsReached(message)
+		result = parseMaxSessConnsReached(view8)
 		break
 	case MessageType.SessionsDisabled:
-		result = parseSessionsDisabled(message)
+		result = parseSessionsDisabled(view8)
 		break
 	case MessageType.ErrorReply:
-		result = parseErrorReply(message)
+		result = parseErrorReply(view8)
 		break
 	case MessageType.ReplyProtocolError:
-		result = parseProtocolError(message)
+		result = parseProtocolError(view8)
 		break
 
 	// Request replies
 	case MessageType.ReplyBinary:
-		result = parseReplyBinary(message)
+		result = parseReplyBinary(view8)
 		break
 	case MessageType.ReplyUtf8:
 		payloadEncoding = 'utf8'
-		result = parseReplyUtf8(message)
+		result = parseReplyUtf8(view8)
 		break
 	case MessageType.ReplyUtf16:
 		payloadEncoding = 'utf16'
-		result = parseReplyUtf16(message)
+		result = parseReplyUtf16(view8)
 		break
 
 	// Ignore messages of unsupported message type
@@ -517,11 +541,14 @@ function parse(msg) {
 					reject(event.target.error)
 				}
 				reader.onload = function() {
-					resolve(parseMsg(new Uint8Array(this.result)))
+					resolve(parseMsg(
+						this.result,
+						new Uint8Array(this.result)
+					))
 				}
 				reader.readAsArrayBuffer(msg)
 			} else {
-				resolve(parseMsg(new Uint8Array(
+				resolve(parseMsg(msg.buffer, new Uint8Array(
 					msg.buffer,
 					msg.byteOffset,
 					msg.byteLength / Uint8Array.BYTES_PER_ELEMENT
